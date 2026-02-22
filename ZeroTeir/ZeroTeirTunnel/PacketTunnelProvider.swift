@@ -25,24 +25,25 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        do {
-            let tunnelConfiguration = try TunnelConfiguration(fromWgQuickConfig: wgQuickConfig)
-
-            adapter.start(tunnelConfiguration: tunnelConfiguration) { error in
-                if let error = error {
-                    Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
-                        .error("Failed to start tunnel: \(error.localizedDescription)")
-                    completionHandler(error)
-                } else {
-                    Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
-                        .info("Tunnel started successfully")
-                    completionHandler(nil)
-                }
-            }
-        } catch {
+        guard let tunnelConfiguration = parseWgQuickConfig(wgQuickConfig) else {
             Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
-                .error("Failed to parse WireGuard config: \(error.localizedDescription)")
-            completionHandler(error)
+                .error("Failed to parse WireGuard config")
+            completionHandler(NSError(domain: "com.zeroteir.vpn.tunnel",
+                                     code: 2,
+                                     userInfo: [NSLocalizedDescriptionKey: "Failed to parse WireGuard configuration"]))
+            return
+        }
+
+        adapter.start(tunnelConfiguration: tunnelConfiguration) { error in
+            if let error = error {
+                Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+                    .error("Failed to start tunnel: \(error.localizedDescription)")
+                completionHandler(error)
+            } else {
+                Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+                    .info("Tunnel started successfully")
+                completionHandler(nil)
+            }
         }
     }
 
@@ -66,22 +67,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         if message == "getTransferData" {
-            adapter.getRuntimeConfiguration { settings in
-                guard let settings = settings else {
+            adapter.getRuntimeConfiguration { configString in
+                guard let configString = configString else {
                     completionHandler?(nil)
                     return
                 }
 
-                let rxBytes = settings.peers.first?.rxBytes ?? 0
-                let txBytes = settings.peers.first?.txBytes ?? 0
-                let lastHandshakeEpoch = settings.peers.first?.lastHandshakeTime?.timeIntervalSince1970 ?? 0
-
-                let stats = TunnelStats(
-                    rxBytes: rxBytes,
-                    txBytes: txBytes,
-                    lastHandshakeEpoch: UInt64(lastHandshakeEpoch)
-                )
-
+                let stats = self.parseRuntimeStats(configString)
                 if let responseData = try? JSONEncoder().encode(stats) {
                     completionHandler?(responseData)
                 } else {
@@ -91,6 +83,144 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         } else {
             completionHandler?(nil)
         }
+    }
+
+    private func parseWgQuickConfig(_ config: String) -> TunnelConfiguration? {
+        let lines = config.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+
+        var privateKeyStr: String?
+        var addresses: [IPAddressRange] = []
+        var dns: [DNSServer] = []
+        var peers: [PeerConfiguration] = []
+
+        var currentPeerPublicKey: String?
+        var currentPeerEndpoint: String?
+        var currentPeerAllowedIPs: [IPAddressRange] = []
+        var currentPeerKeepAlive: UInt16?
+
+        var inInterface = false
+        var inPeer = false
+
+        for line in lines {
+            if line.isEmpty || line.hasPrefix("#") { continue }
+
+            if line == "[Interface]" {
+                if inPeer, let pubKeyStr = currentPeerPublicKey, let pubKey = PublicKey(base64Key: pubKeyStr) {
+                    var peer = PeerConfiguration(publicKey: pubKey)
+                    peer.allowedIPs = currentPeerAllowedIPs
+                    if let ep = currentPeerEndpoint, let endpoint = Endpoint(from: ep) {
+                        peer.endpoint = endpoint
+                    }
+                    peer.persistentKeepAlive = currentPeerKeepAlive
+                    peers.append(peer)
+                }
+                inInterface = true
+                inPeer = false
+                continue
+            }
+
+            if line == "[Peer]" {
+                if inPeer, let pubKeyStr = currentPeerPublicKey, let pubKey = PublicKey(base64Key: pubKeyStr) {
+                    var peer = PeerConfiguration(publicKey: pubKey)
+                    peer.allowedIPs = currentPeerAllowedIPs
+                    if let ep = currentPeerEndpoint, let endpoint = Endpoint(from: ep) {
+                        peer.endpoint = endpoint
+                    }
+                    peer.persistentKeepAlive = currentPeerKeepAlive
+                    peers.append(peer)
+                }
+                inInterface = false
+                inPeer = true
+                currentPeerPublicKey = nil
+                currentPeerEndpoint = nil
+                currentPeerAllowedIPs = []
+                currentPeerKeepAlive = nil
+                continue
+            }
+
+            let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == 2 else { continue }
+            let key = parts[0]
+            let value = parts[1]
+
+            if inInterface {
+                switch key {
+                case "PrivateKey":
+                    privateKeyStr = value
+                case "Address":
+                    for addr in value.split(separator: ",") {
+                        if let range = IPAddressRange(from: addr.trimmingCharacters(in: .whitespaces)) {
+                            addresses.append(range)
+                        }
+                    }
+                case "DNS":
+                    for d in value.split(separator: ",") {
+                        if let server = DNSServer(from: d.trimmingCharacters(in: .whitespaces)) {
+                            dns.append(server)
+                        }
+                    }
+                default:
+                    break
+                }
+            } else if inPeer {
+                switch key {
+                case "PublicKey":
+                    currentPeerPublicKey = value
+                case "Endpoint":
+                    currentPeerEndpoint = value
+                case "AllowedIPs":
+                    for ip in value.split(separator: ",") {
+                        if let range = IPAddressRange(from: ip.trimmingCharacters(in: .whitespaces)) {
+                            currentPeerAllowedIPs.append(range)
+                        }
+                    }
+                case "PersistentKeepalive":
+                    currentPeerKeepAlive = UInt16(value)
+                default:
+                    break
+                }
+            }
+        }
+
+        // Flush last peer
+        if inPeer, let pubKeyStr = currentPeerPublicKey, let pubKey = PublicKey(base64Key: pubKeyStr) {
+            var peer = PeerConfiguration(publicKey: pubKey)
+            peer.allowedIPs = currentPeerAllowedIPs
+            if let ep = currentPeerEndpoint, let endpoint = Endpoint(from: ep) {
+                peer.endpoint = endpoint
+            }
+            peer.persistentKeepAlive = currentPeerKeepAlive
+            peers.append(peer)
+        }
+
+        guard let pkStr = privateKeyStr, let privateKey = PrivateKey(base64Key: pkStr) else {
+            return nil
+        }
+
+        var interfaceConfig = InterfaceConfiguration(privateKey: privateKey)
+        interfaceConfig.addresses = addresses
+        interfaceConfig.dns = dns
+
+        return TunnelConfiguration(name: "ZeroTeir", interface: interfaceConfig, peers: peers)
+    }
+
+    private func parseRuntimeStats(_ config: String) -> TunnelStats {
+        var rxBytes: UInt64 = 0
+        var txBytes: UInt64 = 0
+        var lastHandshakeEpoch: UInt64 = 0
+
+        for line in config.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("rx_bytes=") {
+                rxBytes = UInt64(trimmed.replacingOccurrences(of: "rx_bytes=", with: "")) ?? 0
+            } else if trimmed.hasPrefix("tx_bytes=") {
+                txBytes = UInt64(trimmed.replacingOccurrences(of: "tx_bytes=", with: "")) ?? 0
+            } else if trimmed.hasPrefix("last_handshake_time_sec=") {
+                lastHandshakeEpoch = UInt64(trimmed.replacingOccurrences(of: "last_handshake_time_sec=", with: "")) ?? 0
+            }
+        }
+
+        return TunnelStats(rxBytes: rxBytes, txBytes: txBytes, lastHandshakeEpoch: lastHandshakeEpoch)
     }
 }
 
