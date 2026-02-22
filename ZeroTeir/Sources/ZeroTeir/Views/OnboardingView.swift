@@ -89,6 +89,8 @@ struct OnboardingView: View {
                 featureRow(icon: "gauge.high", title: "Fast", description: "Direct connection to your EC2 instance")
             }
             .padding()
+
+            quickSetupHint
         }
     }
 
@@ -97,13 +99,21 @@ struct OnboardingView: View {
             Text("Lambda API Configuration")
                 .font(.title2)
 
-            Text("Enter your Lambda API endpoint and API key. This is used to control your EC2 instance.")
+            Text("The Lambda API controls your EC2 VPN server (start/stop/status).")
                 .foregroundColor(.secondary)
+
+            helpBox(steps: [
+                "Run ./setup.sh --profile zeroteir from the project root",
+                "Or find these values in your Terraform outputs:",
+                "  cd terraform && terraform output",
+                "API Endpoint = api_endpoint output",
+                "API Key = api_key output (sensitive)"
+            ])
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("API Endpoint")
                     .font(.caption)
-                TextField("https://api.example.com", text: $lambdaApiEndpoint)
+                TextField("https://abc123.execute-api.us-east-1.amazonaws.com/prod", text: $lambdaApiEndpoint)
                     .textFieldStyle(.roundedBorder)
             }
 
@@ -112,6 +122,10 @@ struct OnboardingView: View {
                     .font(.caption)
                 SecureField("Enter your API key", text: $lambdaApiKey)
                     .textFieldStyle(.roundedBorder)
+                Text("Run: cd terraform && terraform output -raw api_key")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
             }
         }
         .padding()
@@ -122,14 +136,25 @@ struct OnboardingView: View {
             Text("Headscale Configuration")
                 .font(.title2)
 
-            Text("Enter your Headscale server URL and API key.")
+            Text("Headscale coordinates the WireGuard VPN tunnel between your Mac and the EC2 server.")
                 .foregroundColor(.secondary)
+
+            helpBox(steps: [
+                "If you used setup.sh, these values were printed at the end",
+                "Headscale URL = https://<your-elastic-ip>",
+                "API Key is auto-generated and stored in AWS SSM:",
+                "  aws ssm get-parameter --name /zeroteir/headscale-api-key \\",
+                "    --with-decryption --query Parameter.Value --output text"
+            ])
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Headscale URL")
                     .font(.caption)
-                TextField("https://headscale.example.com", text: $headscaleURL)
+                TextField("https://13.216.86.47", text: $headscaleURL)
                     .textFieldStyle(.roundedBorder)
+                Text("This is https:// followed by your Elastic IP from Terraform")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -137,6 +162,9 @@ struct OnboardingView: View {
                     .font(.caption)
                 SecureField("Enter your API key", text: $headscaleApiKey)
                     .textFieldStyle(.roundedBorder)
+                Text("Auto-generated on first boot. Stored in AWS SSM Parameter Store.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
@@ -156,6 +184,57 @@ struct OnboardingView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
+    }
+
+    private var quickSetupHint: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "terminal")
+                    .foregroundColor(.accentColor)
+                Text("Quick Setup")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            Text("Run this from the project root to deploy infrastructure and get all config values automatically:")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text("./setup.sh --profile zeroteir")
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(4)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(4)
+        }
+        .padding(10)
+        .background(Color.accentColor.opacity(0.08))
+        .cornerRadius(8)
+    }
+
+    private func helpBox(steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: "questionmark.circle")
+                    .foregroundColor(.orange)
+                Text("Where to find this")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
+                if step.hasPrefix("  ") {
+                    Text(step)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                } else {
+                    Text(step)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08))
+        .cornerRadius(6)
     }
 
     private func featureRow(icon: String, title: String, description: String) -> some View {

@@ -47,16 +47,23 @@ struct SettingsView: View {
     private var connectionTab: some View {
         @Bindable var bindableSettings = appState.settings
 
-        return VStack(alignment: .leading, spacing: 16) {
+        return ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
             Text("API Configuration")
                 .font(.headline)
+
+            settingsHelpBox
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Lambda API Endpoint")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                TextField("https://api.example.com", text: $bindableSettings.lambdaApiEndpoint)
+                TextField("https://abc123.execute-api.us-east-1.amazonaws.com/prod", text: $bindableSettings.lambdaApiEndpoint)
                     .textFieldStyle(.roundedBorder)
+                Text("From: cd terraform && terraform output -raw api_endpoint")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -65,14 +72,22 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                 SecureField("Enter API key", text: $lambdaApiKey)
                     .textFieldStyle(.roundedBorder)
+                Text("From: cd terraform && terraform output -raw api_key")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Headscale URL")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                TextField("https://headscale.example.com", text: $bindableSettings.headscaleURL)
+                TextField("https://13.216.86.47", text: $bindableSettings.headscaleURL)
                     .textFieldStyle(.roundedBorder)
+                Text("From: cd terraform && terraform output -raw headscale_url")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -81,6 +96,10 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                 SecureField("Enter API key", text: $headscaleApiKey)
                     .textFieldStyle(.roundedBorder)
+                Text("From: aws ssm get-parameter --name /zeroteir/headscale-api-key --with-decryption --query Parameter.Value --output text")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
             }
 
             if let results = testResults {
@@ -114,6 +133,8 @@ struct SettingsView: View {
             }
 
             Spacer()
+        }
+        .padding()
         }
         .alert("Error Saving Settings", isPresented: $showingSaveError) {
             Button("OK", role: .cancel) {}
@@ -448,6 +469,34 @@ struct SettingsView: View {
         }
         .padding()
         .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+    }
+
+    private var settingsHelpBox: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "terminal")
+                    .foregroundColor(.accentColor)
+                Text("How to get these values")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            Text("Run the setup script to deploy infrastructure and get all values:")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text("./setup.sh --profile zeroteir")
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(4)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(4)
+            Text("Or retrieve individual values with the terraform commands shown below each field.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.08))
         .cornerRadius(8)
     }
 

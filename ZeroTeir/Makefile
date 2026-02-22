@@ -54,7 +54,9 @@ release: xcodegen
 		-configuration $(CONFIGURATION_RELEASE) \
 		-archivePath $(ARCHIVE_PATH) \
 		-allowProvisioningUpdates \
-		DEVELOPMENT_TEAM=$(TEAM_ID)
+		DEVELOPMENT_TEAM=$(TEAM_ID) \
+		ARCHS=arm64 \
+		ONLY_ACTIVE_ARCH=NO
 	@echo "Archive created at $(ARCHIVE_PATH)"
 
 dmg: release
