@@ -1,4 +1,4 @@
-.PHONY: build release dmg clean run help xcodegen
+.PHONY: build release dmg clean run help xcodegen check
 
 APP_NAME = ZeroTeir
 PROJECT_FILE = $(APP_NAME).xcodeproj
@@ -19,6 +19,7 @@ help:
 	@echo "  make release  - Build Release archive"
 	@echo "  make dmg      - Create distributable DMG"
 	@echo "  make run      - Build and run the app"
+	@echo "  make check    - Check dependency versions"
 	@echo "  make clean    - Clean build artifacts"
 	@echo "  make help     - Show this help message"
 
@@ -64,6 +65,9 @@ run: build
 		exit 1; \
 	fi; \
 	open "$$APP_PATH"
+
+check:
+	@./Scripts/check-versions.sh
 
 clean:
 	@echo "Cleaning build artifacts..."

@@ -17,14 +17,20 @@ class InstanceManager {
         self.apiKey = apiKey
     }
 
-    func start() async throws -> InstanceInfo {
+    func start(instanceType: String? = nil) async throws -> InstanceInfo {
         Log.instance.info("Starting instance...")
 
         let endpoint = apiEndpoint.appendingPathComponent("instance/start")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = Constants.Timeouts.instanceStart
+
+        if let instanceType {
+            let body = ["instanceType": instanceType]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
 
         let response: InstanceStartResponse = try await performRequestWithRetry(request)
 

@@ -32,7 +32,8 @@ resource "aws_iam_role_policy" "instance_control_lambda" {
         Effect = "Allow"
         Action = [
           "ec2:StartInstances",
-          "ec2:StopInstances"
+          "ec2:StopInstances",
+          "ec2:ModifyInstanceAttribute"
         ]
         Resource = aws_instance.vpn.arn
       },

@@ -84,9 +84,13 @@ def get_instance_info() -> Dict[str, Any]:
         raise
 
 
-def start_instance() -> Dict[str, Any]:
+def start_instance(requested_instance_type: str = None) -> Dict[str, Any]:
     """
     Start the VPN instance and wait for it to be running.
+    Optionally changes instance type before starting (only works when stopped).
+
+    Args:
+        requested_instance_type: Optional EC2 instance type (e.g. "t3.micro", "t4g.small")
 
     Returns:
         Dictionary containing the instance status after starting
@@ -113,6 +117,20 @@ def start_instance() -> Dict[str, Any]:
                 'message': 'Instance is already starting',
                 **instance_info
             }
+
+        # Change instance type if requested and instance is stopped
+        if requested_instance_type and current_state == 'stopped':
+            current_type = instance_info.get('instanceType', '')
+            if current_type != requested_instance_type:
+                logger.info(f"Changing instance type from {current_type} to {requested_instance_type}")
+                try:
+                    ec2.modify_instance_attribute(
+                        InstanceId=INSTANCE_ID,
+                        InstanceType={'Value': requested_instance_type}
+                    )
+                    logger.info(f"Instance type changed to {requested_instance_type}")
+                except ClientError as e:
+                    logger.warning(f"Failed to change instance type: {e}. Starting with current type.")
 
         # Start the instance
         ec2.start_instances(InstanceIds=[INSTANCE_ID])
@@ -240,7 +258,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Route to appropriate handler
         if path.endswith('/start') and method == 'POST':
-            result = start_instance()
+            # Parse optional instance_type from request body
+            requested_instance_type = None
+            body = event.get('body')
+            if body:
+                try:
+                    body_json = json.loads(body)
+                    requested_instance_type = body_json.get('instanceType')
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            result = start_instance(requested_instance_type=requested_instance_type)
             return success_response(200, result)
 
         elif path.endswith('/stop') and method == 'POST':

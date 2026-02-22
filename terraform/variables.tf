@@ -34,7 +34,7 @@ variable "admin_ip" {
 variable "headscale_version" {
   description = "Version of Headscale to install"
   type        = string
-  default     = "0.23.0"
+  default     = "0.28.0"
 }
 
 variable "headscale_domain" {

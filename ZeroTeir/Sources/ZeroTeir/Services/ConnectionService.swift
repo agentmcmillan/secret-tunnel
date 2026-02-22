@@ -35,7 +35,7 @@ class ConnectionService: ObservableObject {
 
             appState.updateState(.startingInstance)
             let instanceManager = InstanceManager(apiEndpoint: lambdaURL, apiKey: apiKey)
-            let instanceInfo = try await instanceManager.start()
+            let instanceInfo = try await instanceManager.start(instanceType: appState.settings.instanceType)
 
             guard let publicIP = instanceInfo.publicIp else {
                 throw AppError.instanceStartFailed("No public IP returned")
