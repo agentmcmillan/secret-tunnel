@@ -8,10 +8,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var connectionService: ConnectionService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupMenuBar()
         appState.settings.loadFromKeychain()
-
         connectionService = ConnectionService(appState: appState)
+        setupMenuBar()
 
         if !appState.settings.isValid {
             showOnboarding()

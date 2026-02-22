@@ -26,7 +26,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 
   filter {
@@ -78,7 +78,7 @@ resource "aws_security_group" "vpn" {
 
   # HTTP (for Let's Encrypt ACME challenge)
   ingress {
-    description = "HTTP for Let's Encrypt"
+    description = "HTTP for Lets Encrypt"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -140,7 +140,7 @@ resource "aws_instance" "vpn" {
       # Ignore user_data changes after creation to prevent replacement
       user_data,
       # Allow instance to be stopped/started without Terraform interference
-      instance_state
+      # instance_state removed - not a valid lifecycle attribute
     ]
   }
 
