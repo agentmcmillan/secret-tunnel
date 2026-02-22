@@ -99,7 +99,10 @@ struct MenuBarView: View {
     }
 
     private func statsSection(status: ConnectionStatus) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let rate = Constants.Pricing.hourlyRate(for: appState.settings.instanceType)
+        let sessionCost = rate * (status.uptime / 3600.0)
+
+        return VStack(alignment: .leading, spacing: 6) {
             Text("Connection Stats")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -108,6 +111,11 @@ struct MenuBarView: View {
             statsRow(label: "Sent", value: status.formattedBytesSent)
             statsRow(label: "Received", value: status.formattedBytesReceived)
             statsRow(label: "Uptime", value: status.formattedUptime)
+
+            Divider()
+
+            statsRow(label: "Rate", value: Constants.Pricing.formatRate(rate))
+            statsRow(label: "Session", value: Constants.Pricing.formatCost(sessionCost))
         }
         .font(.caption)
     }

@@ -126,11 +126,15 @@ resource "aws_instance" "vpn" {
     }
   }
 
+  # IAM instance profile for SSM access (Headscale API key storage)
+  iam_instance_profile = aws_iam_instance_profile.vpn.name
+
   # Cloud-init configuration for automatic setup
   user_data = templatefile("${path.module}/files/cloud-init.yaml", {
     headscale_version = var.headscale_version
     headscale_url     = local.headscale_url
     elastic_ip        = aws_eip.vpn.public_ip
+    aws_region        = var.aws_region
   })
 
   # Instance starts in stopped state to save costs
@@ -153,4 +157,55 @@ resource "aws_instance" "vpn" {
 resource "aws_eip_association" "vpn" {
   instance_id   = aws_instance.vpn.id
   allocation_id = aws_eip.vpn.id
+}
+
+# IAM Role for EC2 Instance (SSM Parameter Store access)
+resource "aws_iam_role" "vpn_instance" {
+  name = "${var.project_name}-vpn-instance-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-vpn-instance-role"
+  }
+}
+
+resource "aws_iam_role_policy" "vpn_ssm" {
+  name = "${var.project_name}-vpn-ssm-policy"
+  role = aws_iam_role.vpn_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:PutParameter",
+          "ssm:GetParameter",
+          "ssm:DeleteParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/zeroteir/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "vpn" {
+  name = "${var.project_name}-vpn-instance-profile"
+  role = aws_iam_role.vpn_instance.name
+
+  tags = {
+    Name = "${var.project_name}-vpn-instance-profile"
+  }
 }

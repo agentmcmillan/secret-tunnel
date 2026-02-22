@@ -21,3 +21,34 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+# Build artifacts
+ZeroTeir/build/
+ZeroTeir/*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+
+# Terraform
+terraform/.terraform/
+terraform/terraform.tfstate*
+terraform/terraform.tfvars
+
+# Setup script output
+.zeroteir-config
+
+# Memory system
+alpha-wave/
+rem/
+ZeroTeir/rem/
+terraform/rem/
+
+# Generated docs
+ZeroTeir/FILES.md
+ZeroTeir/INDEX.md
+ZeroTeir/IMPLEMENTATION_SUMMARY.md
+ZeroTeir/MIGRATION_NOTES.md
+ZeroTeir/RELEASE_NOTES.md
+TERRAFORM_IMPLEMENTATION_COMPLETE.md
+
+# Claude
+.claude/

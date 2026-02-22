@@ -324,19 +324,18 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Picker("Instance Type", selection: $bindableSettings.instanceType) {
-                        Text("t3.micro (1 vCPU, 1 GB) - Free Tier").tag("t3.micro")
-                        Text("t3.small (2 vCPU, 2 GB)").tag("t3.small")
-                        Text("t3.medium (2 vCPU, 4 GB)").tag("t3.medium")
-                        Text("t3a.micro (1 vCPU, 1 GB) - AMD").tag("t3a.micro")
-                        Text("t3a.small (2 vCPU, 2 GB) - AMD").tag("t3a.small")
-                        Text("t4g.micro (2 vCPU, 1 GB) - ARM/Graviton").tag("t4g.micro")
-                        Text("t4g.small (2 vCPU, 2 GB) - ARM/Graviton").tag("t4g.small")
+                        Text("t3.micro - 1 vCPU, 1 GB ($0.0104/hr)").tag("t3.micro")
+                        Text("t3.small - 2 vCPU, 2 GB ($0.0208/hr)").tag("t3.small")
+                        Text("t3.medium - 2 vCPU, 4 GB ($0.0416/hr)").tag("t3.medium")
+                        Text("t3a.micro - 1 vCPU, 1 GB ($0.0094/hr) AMD").tag("t3a.micro")
+                        Text("t3a.small - 2 vCPU, 2 GB ($0.0188/hr) AMD").tag("t3a.small")
+                        Text("t4g.micro - 2 vCPU, 1 GB ($0.0084/hr) Graviton").tag("t4g.micro")
+                        Text("t4g.small - 2 vCPU, 2 GB ($0.0168/hr) Graviton").tag("t4g.small")
                     }
                     .pickerStyle(.menu)
-                    Text("Larger instances = faster VPN throughput but higher cost.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                 }
+
+                costEstimateSection
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Idle Auto-Stop (minutes)")
@@ -450,6 +449,58 @@ struct SettingsView: View {
         .padding()
         .background(Color.secondary.opacity(0.1))
         .cornerRadius(8)
+    }
+
+    private var costEstimateSection: some View {
+        let rate = Constants.Pricing.hourlyRate(for: appState.settings.instanceType)
+        let persistent = Constants.Pricing.persistentMonthlyCost
+        let at2hrs = Constants.Pricing.estimatedMonthlyCost(instanceType: appState.settings.instanceType, hoursPerDay: 2)
+        let at8hrs = Constants.Pricing.estimatedMonthlyCost(instanceType: appState.settings.instanceType, hoursPerDay: 8)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Cost Estimate")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Persistent (EIP + EBS)")
+                        .font(.caption2)
+                    Spacer()
+                    Text(Constants.Pricing.formatCost(persistent) + "/mo")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                HStack {
+                    Text("Compute")
+                        .font(.caption2)
+                    Spacer()
+                    Text(Constants.Pricing.formatRate(rate))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                HStack {
+                    Text("~2 hrs/day")
+                        .font(.caption2)
+                    Spacer()
+                    Text("~" + Constants.Pricing.formatCost(at2hrs) + "/mo")
+                        .font(.caption2).bold()
+                }
+                HStack {
+                    Text("~8 hrs/day")
+                        .font(.caption2)
+                    Spacer()
+                    Text("~" + Constants.Pricing.formatCost(at8hrs) + "/mo")
+                        .font(.caption2).bold()
+                }
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(6)
+        }
     }
 
     private var isFormValid: Bool {

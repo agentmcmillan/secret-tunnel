@@ -16,6 +16,7 @@ packages:
   - unattended-upgrades
   - apt-listchanges
   - nginx
+  - awscli
   - certbot
   - python3-certbot-nginx
 
@@ -255,6 +256,21 @@ runcmd:
   - sleep 5
   - headscale namespaces create default || true
   - headscale namespaces create unifi || true
+
+  # Generate Headscale API key and store in SSM Parameter Store
+  - |
+    HEADSCALE_API_KEY=$(headscale apikeys create --expiration 365d 2>/dev/null | tail -1)
+    if [ -n "$HEADSCALE_API_KEY" ]; then
+      aws ssm put-parameter \
+        --name "/zeroteir/headscale-api-key" \
+        --value "$HEADSCALE_API_KEY" \
+        --type SecureString \
+        --overwrite \
+        --region ${aws_region} 2>/dev/null || echo "Failed to store API key in SSM"
+      echo "Headscale API key stored in SSM Parameter Store"
+    else
+      echo "Failed to create Headscale API key"
+    fi
 
   # Enable exit node support (for UniFi travel router and other clients)
   # Allow the server to act as an exit node for connected peers
