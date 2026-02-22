@@ -18,6 +18,11 @@ struct SettingsView: View {
                     Label("Connection", systemImage: "network")
                 }
 
+            networkTab
+                .tabItem {
+                    Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
+                }
+
             generalTab
                 .tabItem {
                     Label("General", systemImage: "gear")
@@ -104,6 +109,97 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(saveErrorMessage)
+        }
+    }
+
+    private var networkTab: some View {
+        @Bindable var bindableSettings = appState.settings
+
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Home LAN Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Home LAN (Split Tunnel)")
+                        .font(.headline)
+
+                    Text("Route home network traffic through your NAS subnet router while internet goes through AWS.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Toggle("Enable Home LAN Routing", isOn: $bindableSettings.homeLANEnabled)
+
+                    if appState.settings.homeLANEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("NAS WireGuard Public Key")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("Public key from your NAS", text: $bindableSettings.homeNASPublicKey)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("NAS Endpoint (optional)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("e.g. home.ddns.net:51820", text: $bindableSettings.homeNASEndpoint)
+                                .textFieldStyle(.roundedBorder)
+                            Text("Leave empty if NAS connects to Headscale (recommended)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Home Subnet")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("192.168.1.0/24", text: $bindableSettings.homeSubnet)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // UniFi Travel Router Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("UniFi Travel Router")
+                        .font(.headline)
+
+                    Text("Allow your UniFi travel router to connect to the AWS exit node as an additional WireGuard peer.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Toggle("Enable Travel Router Peer", isOn: $bindableSettings.unifiEnabled)
+
+                    if appState.settings.unifiEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Travel Router Public Key")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("Public key from UniFi device", text: $bindableSettings.unifiPeerPublicKey)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Server-Side Config")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("The AWS instance will automatically accept this peer via Headscale. Configure your UniFi travel router to connect to the AWS instance's Elastic IP on port \(Constants.WireGuard.port).")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Save") {
+                        saveSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding()
         }
     }
 

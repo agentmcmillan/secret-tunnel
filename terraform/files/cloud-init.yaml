@@ -120,12 +120,21 @@ write_files:
   - path: /etc/headscale/acl.yaml
     content: |
       acls:
-        # Allow all traffic by default
+        # Allow all traffic between all users (default, unifi)
         - action: accept
           src:
             - "*"
           dst:
             - "*:*"
+      autoApprovers:
+        # Auto-approve exit node and subnet routes
+        routes:
+          - "0.0.0.0/0":
+            - "default"
+          - "192.168.0.0/20":
+            - "default"
+        exitNode:
+          - "default"
 
   # Fail2ban configuration for SSH
   - path: /etc/fail2ban/jail.local
@@ -242,9 +251,16 @@ runcmd:
     EOF
   - systemctl enable iptables-restore
 
-  # Create default namespace
+  # Create default namespace and users
   - sleep 5
   - headscale namespaces create default || true
+  - headscale namespaces create unifi || true
+
+  # Enable exit node support (for UniFi travel router and other clients)
+  # Allow the server to act as an exit node for connected peers
+  - iptables -A FORWARD -i tailscale0 -j ACCEPT
+  - iptables -A FORWARD -o tailscale0 -j ACCEPT
+  - iptables-save > /etc/iptables.rules
 
   # Log completion
   - echo "ZeroTeir VPN setup complete - $(date)" >> /var/log/cloud-init-complete.log

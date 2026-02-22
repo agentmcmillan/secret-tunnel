@@ -15,6 +15,11 @@ struct MenuBarView: View {
                 statsSection(status: status)
             }
 
+            if !appState.settings.homeNASPublicKey.isEmpty {
+                Divider()
+                homeLANToggle
+            }
+
             Divider()
             settingsButton
             quitButton
@@ -116,6 +121,26 @@ struct MenuBarView: View {
         }
     }
 
+    private var homeLANToggle: some View {
+        @Bindable var bindableSettings = appState.settings
+
+        return Toggle(isOn: $bindableSettings.homeLANEnabled) {
+            HStack(spacing: 6) {
+                Image(systemName: "house.fill")
+                    .foregroundColor(appState.settings.homeLANEnabled ? .blue : .secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Home LAN")
+                        .font(.caption)
+                    Text(appState.settings.homeSubnet)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+    }
+
     private var settingsButton: some View {
         Button("Settings...") {
             openSettings()
@@ -135,10 +160,10 @@ struct MenuBarView: View {
         } else {
             let settingsView = SettingsView()
                 .environment(appState)
-                .frame(width: 500, height: 400)
+                .frame(width: 520, height: 500)
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false

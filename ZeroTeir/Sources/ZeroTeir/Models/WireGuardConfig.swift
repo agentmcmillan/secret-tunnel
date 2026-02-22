@@ -1,13 +1,28 @@
 import Foundation
 
+struct WireGuardPeer: Equatable {
+    let publicKey: String
+    let endpoint: String?
+    let allowedIPs: String
+    let persistentKeepalive: Int
+
+    func toWgQuickConfig() -> String {
+        var config = "[Peer]\n"
+        config += "PublicKey = \(publicKey)\n"
+        if let endpoint = endpoint {
+            config += "Endpoint = \(endpoint)\n"
+        }
+        config += "AllowedIPs = \(allowedIPs)\n"
+        config += "PersistentKeepalive = \(persistentKeepalive)\n"
+        return config
+    }
+}
+
 struct WireGuardConfig: Equatable {
     let privateKey: String
     let address: String
     let dns: String?
-    let serverPublicKey: String
-    let endpoint: String
-    let allowedIPs: String
-    let persistentKeepalive: Int
+    let peers: [WireGuardPeer]
 
     init(
         privateKey: String,
@@ -21,31 +36,45 @@ struct WireGuardConfig: Equatable {
         self.privateKey = privateKey
         self.address = address
         self.dns = dns
-        self.serverPublicKey = serverPublicKey
-        self.endpoint = endpoint
-        self.allowedIPs = allowedIPs
-        self.persistentKeepalive = persistentKeepalive
+        self.peers = [
+            WireGuardPeer(
+                publicKey: serverPublicKey,
+                endpoint: "\(endpoint):\(Constants.WireGuard.port)",
+                allowedIPs: allowedIPs,
+                persistentKeepalive: persistentKeepalive
+            )
+        ]
     }
 
-    func toConfigFile() -> String {
-        var config = """
-        [Interface]
-        PrivateKey = \(privateKey)
-        Address = \(address)
-        """
+    init(
+        privateKey: String,
+        address: String,
+        dns: String? = "1.1.1.1",
+        peers: [WireGuardPeer]
+    ) {
+        self.privateKey = privateKey
+        self.address = address
+        self.dns = dns
+        self.peers = peers
+    }
+
+    var serverEndpoint: String {
+        return peers.first?.endpoint ?? ""
+    }
+
+    func toWgQuickConfig() -> String {
+        var config = "[Interface]\n"
+        config += "PrivateKey = \(privateKey)\n"
+        config += "Address = \(address)\n"
 
         if let dns = dns {
-            config += "\nDNS = \(dns)"
+            config += "DNS = \(dns)\n"
         }
 
-        config += """
-
-        [Peer]
-        PublicKey = \(serverPublicKey)
-        Endpoint = \(endpoint):\(Constants.WireGuard.port)
-        AllowedIPs = \(allowedIPs)
-        PersistentKeepalive = \(persistentKeepalive)
-        """
+        for peer in peers {
+            config += "\n"
+            config += peer.toWgQuickConfig()
+        }
 
         return config
     }

@@ -2,6 +2,8 @@ import Foundation
 
 enum Constants {
     static let bundleIdentifier = "com.zeroteir.vpn"
+    static let tunnelBundleIdentifier = "com.zeroteir.vpn.tunnel"
+    static let appGroupIdentifier = "group.com.zeroteir.vpn"
     static let appName = "ZeroTeir"
     static let configDirectory = ".zeroteir"
     static let wireguardConfigName = "wg0.conf"
@@ -36,5 +38,14 @@ enum Constants {
         static let port = 51820
         static let persistentKeepalive = 25
         static let interface = "wg0"
+    }
+
+    enum HomeNetwork {
+        static let defaultSubnet = "192.168.0.0/20"
+        static let defaultDNS = "192.168.1.1"
+    }
+
+    enum UniFi {
+        static let defaultListenPort = 51820
     }
 }

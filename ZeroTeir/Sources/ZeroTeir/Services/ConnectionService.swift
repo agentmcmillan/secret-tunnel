@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 @MainActor
 class ConnectionService: ObservableObject {
@@ -120,12 +121,42 @@ class ConnectionService: ObservableObject {
     private func getWireGuardConfig(headscaleClient: HeadscaleClient, endpoint: String) async throws -> WireGuardConfig {
         let privateKey = try getOrCreateWireGuardKey()
 
+        // AWS peer - routes all internet traffic
+        var awsAllowedIPs = "0.0.0.0/0"
+        if appState.settings.homeLANEnabled && !appState.settings.homeNASPublicKey.isEmpty {
+            // When split tunnel is on, AWS gets everything except home subnet
+            awsAllowedIPs = "0.0.0.0/1, 128.0.0.0/1"
+        }
+
+        var peers = [
+            WireGuardPeer(
+                publicKey: "SERVER_PUBLIC_KEY_PLACEHOLDER",
+                endpoint: "\(endpoint):\(Constants.WireGuard.port)",
+                allowedIPs: awsAllowedIPs,
+                persistentKeepalive: Constants.WireGuard.persistentKeepalive
+            )
+        ]
+
+        // Home NAS peer - routes home LAN traffic
+        if appState.settings.homeLANEnabled && !appState.settings.homeNASPublicKey.isEmpty {
+            let homeEndpoint = appState.settings.homeNASEndpoint.isEmpty ? nil : appState.settings.homeNASEndpoint
+            peers.append(
+                WireGuardPeer(
+                    publicKey: appState.settings.homeNASPublicKey,
+                    endpoint: homeEndpoint,
+                    allowedIPs: appState.settings.homeSubnet,
+                    persistentKeepalive: Constants.WireGuard.persistentKeepalive
+                )
+            )
+        }
+
+        let dns = appState.settings.homeLANEnabled ? Constants.HomeNetwork.defaultDNS : "1.1.1.1"
+
         let config = WireGuardConfig(
             privateKey: privateKey,
             address: "100.64.0.1/32",
-            dns: "1.1.1.1",
-            serverPublicKey: "SERVER_PUBLIC_KEY_PLACEHOLDER",
-            endpoint: endpoint
+            dns: dns,
+            peers: peers
         )
 
         return config
@@ -142,20 +173,8 @@ class ConnectionService: ObservableObject {
     }
 
     private func generateWireGuardPrivateKey() -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/wg")
-        process.arguments = ["genkey"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-
-        try? process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let key = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        return key.isEmpty ? "GENERATED_PRIVATE_KEY_PLACEHOLDER" : key
+        let privateKey = Curve25519.KeyAgreement.PrivateKey()
+        return privateKey.rawRepresentation.base64EncodedString()
     }
 
     private func verifyConnection(expectedIP: String) async throws {

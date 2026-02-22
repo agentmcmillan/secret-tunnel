@@ -1,181 +1,163 @@
 import Foundation
+import NetworkExtension
 
 class TunnelManager {
     enum TunnelError: Error {
-        case wireguardNotInstalled
-        case configWriteFailed
+        case configurationLoadFailed
+        case configurationSaveFailed
         case connectionFailed(String)
         case disconnectionFailed(String)
-        case permissionDenied
         case invalidStats
+        case noManager
+        case ipcFailed
     }
 
-    private let configPath: URL
-    private let interfaceName = Constants.WireGuard.interface
+    private var manager: NETunnelProviderManager?
+    private var statusObserver: Any?
 
     init() {
-        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-        let configDirectory = homeDirectory.appendingPathComponent(Constants.configDirectory)
-        self.configPath = configDirectory.appendingPathComponent(Constants.wireguardConfigName)
+        setupStatusObserver()
+    }
 
-        try? FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+    deinit {
+        if let observer = statusObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    func loadOrCreateManager() async throws {
+        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
+
+        if let existingManager = managers.first(where: { ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == Constants.tunnelBundleIdentifier }) {
+            self.manager = existingManager
+            Log.tunnel.info("Loaded existing VPN configuration")
+        } else {
+            let newManager = NETunnelProviderManager()
+            let protocolConfiguration = NETunnelProviderProtocol()
+            protocolConfiguration.providerBundleIdentifier = Constants.tunnelBundleIdentifier
+            protocolConfiguration.serverAddress = "ZeroTeir VPN"
+            newManager.protocolConfiguration = protocolConfiguration
+            newManager.localizedDescription = "ZeroTeir VPN"
+            newManager.isEnabled = true
+
+            try await newManager.saveToPreferences()
+            try await newManager.loadFromPreferences()
+
+            self.manager = newManager
+            Log.tunnel.info("Created new VPN configuration")
+        }
     }
 
     func connect(config: WireGuardConfig) async throws {
-        Log.tunnel.info("Connecting WireGuard tunnel...")
+        Log.tunnel.info("Connecting NetworkExtension tunnel...")
 
-        try checkWireGuardInstalled()
-
-        let configContent = config.toConfigFile()
-        try configContent.write(to: configPath, atomically: true, encoding: .utf8)
-        Log.tunnel.info("WireGuard config written to: \(self.configPath.path)")
-
-        let result = try await runWireGuardCommand(["up", configPath.path])
-
-        if !result.success {
-            Log.tunnel.error("Failed to bring up WireGuard tunnel: \(result.output)")
-            throw TunnelError.connectionFailed(result.output)
+        if manager == nil {
+            try await loadOrCreateManager()
         }
 
-        Log.tunnel.info("WireGuard tunnel connected successfully")
+        guard let manager = manager else {
+            throw TunnelError.noManager
+        }
+
+        let protocolConfiguration = manager.protocolConfiguration as? NETunnelProviderProtocol ?? NETunnelProviderProtocol()
+        protocolConfiguration.providerBundleIdentifier = Constants.tunnelBundleIdentifier
+        protocolConfiguration.serverAddress = config.serverEndpoint
+
+        let wgQuickConfig = config.toWgQuickConfig()
+        protocolConfiguration.providerConfiguration = ["wgQuickConfig": wgQuickConfig as NSString]
+
+        manager.protocolConfiguration = protocolConfiguration
+        manager.isEnabled = true
+
+        try await manager.saveToPreferences()
+        try await manager.loadFromPreferences()
+
+        do {
+            try manager.connection.startVPNTunnel()
+            Log.tunnel.info("NetworkExtension tunnel started successfully")
+        } catch {
+            Log.tunnel.error("Failed to start tunnel: \(error.localizedDescription)")
+            throw TunnelError.connectionFailed(error.localizedDescription)
+        }
     }
 
     func disconnect() async throws {
-        Log.tunnel.info("Disconnecting WireGuard tunnel...")
+        Log.tunnel.info("Disconnecting NetworkExtension tunnel...")
 
-        let result = try await runWireGuardCommand(["down", interfaceName])
-
-        if !result.success {
-            Log.tunnel.warning("Failed to bring down WireGuard tunnel: \(result.output)")
-            throw TunnelError.disconnectionFailed(result.output)
+        guard let manager = manager else {
+            throw TunnelError.noManager
         }
 
-        Log.tunnel.info("WireGuard tunnel disconnected successfully")
+        manager.connection.stopVPNTunnel()
+        Log.tunnel.info("NetworkExtension tunnel disconnected successfully")
     }
 
     func getStats() async throws -> WireGuardStats {
-        let result = try await runCommand("/usr/local/bin/wg", arguments: ["show", interfaceName, "dump"])
-
-        guard result.success else {
-            throw TunnelError.invalidStats
+        guard let manager = manager,
+              let session = manager.connection as? NETunnelProviderSession else {
+            throw TunnelError.noManager
         }
 
-        let lines = result.output.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        guard lines.count >= 2 else {
-            throw TunnelError.invalidStats
-        }
+        return try await withCheckedThrowingContinuation { continuation in
+            do {
+                let message = "getTransferData".data(using: .utf8)!
+                try session.sendProviderMessage(message) { responseData in
+                    guard let data = responseData,
+                          let stats = try? JSONDecoder().decode(TunnelStats.self, from: data) else {
+                        continuation.resume(throwing: TunnelError.invalidStats)
+                        return
+                    }
 
-        let peerLine = lines[1]
-        let fields = peerLine.components(separatedBy: .whitespaces)
+                    let lastHandshake: Date?
+                    if stats.lastHandshakeEpoch > 0 {
+                        lastHandshake = Date(timeIntervalSince1970: TimeInterval(stats.lastHandshakeEpoch))
+                    } else {
+                        lastHandshake = nil
+                    }
 
-        guard fields.count >= 6 else {
-            throw TunnelError.invalidStats
-        }
+                    let wireGuardStats = WireGuardStats(
+                        bytesSent: stats.txBytes,
+                        bytesReceived: stats.rxBytes,
+                        lastHandshake: lastHandshake,
+                        endpoint: nil
+                    )
 
-        let bytesReceived = UInt64(fields[5]) ?? 0
-        let bytesSent = UInt64(fields[6]) ?? 0
-
-        var lastHandshake: Date?
-        if let timestamp = TimeInterval(fields[4]), timestamp > 0 {
-            lastHandshake = Date(timeIntervalSince1970: timestamp)
-        }
-
-        let endpoint = fields.count > 3 ? fields[3] : nil
-
-        return WireGuardStats(
-            bytesSent: bytesSent,
-            bytesReceived: bytesReceived,
-            lastHandshake: lastHandshake,
-            endpoint: endpoint
-        )
-    }
-
-    func checkWireGuardInstalled() throws {
-        let fileManager = FileManager.default
-        let possiblePaths = [
-            "/usr/local/bin/wg-quick",
-            "/opt/homebrew/bin/wg-quick"
-        ]
-
-        let installed = possiblePaths.contains { fileManager.isExecutableFile(atPath: $0) }
-
-        if !installed {
-            Log.tunnel.error("WireGuard tools not found. Install via: brew install wireguard-tools")
-            throw TunnelError.wireguardNotInstalled
+                    continuation.resume(returning: wireGuardStats)
+                }
+            } catch {
+                continuation.resume(throwing: TunnelError.ipcFailed)
+            }
         }
     }
 
-    private func runWireGuardCommand(_ arguments: [String]) async throws -> CommandResult {
-        let possiblePaths = [
-            "/usr/local/bin/wg-quick",
-            "/opt/homebrew/bin/wg-quick"
-        ]
+    func getCurrentStatus() -> NEVPNStatus {
+        return manager?.connection.status ?? .invalid
+    }
 
-        guard let wgQuickPath = possiblePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            throw TunnelError.wireguardNotInstalled
+    private func setupStatusObserver() {
+        statusObserver = NotificationCenter.default.addObserver(
+            forName: .NEVPNStatusDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let connection = notification.object as? NEVPNConnection else {
+                return
+            }
+
+            let status = connection.status
+            Log.tunnel.info("VPN status changed: \(self?.statusString(status) ?? "unknown")")
         }
-
-        let sudoScript = """
-        do shell script "\(wgQuickPath) \(arguments.joined(separator: " "))" with administrator privileges
-        """
-
-        return try await runAppleScript(sudoScript)
     }
 
-    private func runAppleScript(_ script: String) async throws -> CommandResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let error = String(data: errorData, encoding: .utf8) ?? ""
-
-        let combinedOutput = output + error
-
-        return CommandResult(
-            success: process.terminationStatus == 0,
-            output: combinedOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+    private func statusString(_ status: NEVPNStatus) -> String {
+        switch status {
+        case .invalid: return "invalid"
+        case .disconnected: return "disconnected"
+        case .connecting: return "connecting"
+        case .connected: return "connected"
+        case .reasserting: return "reasserting"
+        case .disconnecting: return "disconnecting"
+        @unknown default: return "unknown"
+        }
     }
-
-    private func runCommand(_ command: String, arguments: [String]) async throws -> CommandResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: command)
-        process.arguments = arguments
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let error = String(data: errorData, encoding: .utf8) ?? ""
-
-        return CommandResult(
-            success: process.terminationStatus == 0,
-            output: (output + error).trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-    }
-}
-
-struct CommandResult {
-    let success: Bool
-    let output: String
 }
