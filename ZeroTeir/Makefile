@@ -3,6 +3,7 @@
 APP_NAME = ZeroTeir
 PROJECT_FILE = $(APP_NAME).xcodeproj
 SCHEME = $(APP_NAME)
+TEAM_ID = 7552UR9ZVD
 CONFIGURATION_DEBUG = Debug
 CONFIGURATION_RELEASE = Release
 BUILD_DIR = build
@@ -40,6 +41,8 @@ build: xcodegen
 		-scheme $(SCHEME) \
 		-configuration $(CONFIGURATION_DEBUG) \
 		-derivedDataPath $(BUILD_DIR) \
+		-allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM_ID) \
 		build
 
 release: xcodegen
@@ -49,7 +52,9 @@ release: xcodegen
 		-project $(PROJECT_FILE) \
 		-scheme $(SCHEME) \
 		-configuration $(CONFIGURATION_RELEASE) \
-		-archivePath $(ARCHIVE_PATH)
+		-archivePath $(ARCHIVE_PATH) \
+		-allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM_ID)
 	@echo "Archive created at $(ARCHIVE_PATH)"
 
 dmg: release

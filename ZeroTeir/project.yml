@@ -26,10 +26,9 @@ targets:
         CFBundleIdentifier: com.zeroteir.vpn
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
-    entitlements:
-      path: Resources/ZeroTeir.entitlements
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn
+      CODE_SIGN_ENTITLEMENTS: Resources/ZeroTeir.entitlements
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -58,10 +57,9 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
-    entitlements:
-      path: ZeroTeirTunnel/ZeroTeirTunnel.entitlements
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn.tunnel
+      CODE_SIGN_ENTITLEMENTS: ZeroTeirTunnel/ZeroTeirTunnel.entitlements
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ENABLE_HARDENED_RUNTIME: true
