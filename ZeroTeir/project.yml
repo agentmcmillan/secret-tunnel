@@ -28,16 +28,6 @@ targets:
         CFBundleVersion: "1"
     entitlements:
       path: Resources/ZeroTeir.entitlements
-      properties:
-        com.apple.security.app-sandbox: false
-        com.apple.security.network.client: true
-        com.apple.security.network.server: true
-        com.apple.developer.networking.networkextension:
-          - packet-tunnel-provider
-        com.apple.security.application-groups:
-          - group.com.zeroteir.vpn
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)com.zeroteir.vpn
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn
       MARKETING_VERSION: "1.0"
@@ -45,10 +35,8 @@ targets:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       INFOPLIST_KEY_LSUIElement: true
       ENABLE_HARDENED_RUNTIME: true
-      CODE_SIGN_STYLE: Manual
-      CODE_SIGN_IDENTITY: "-"
-      PROVISIONING_PROFILE_SPECIFIER: ""
-      DEVELOPMENT_TEAM: AY453CNN45
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: 7552UR9ZVD
     dependencies:
       - target: ZeroTeirTunnel
         embed: true
@@ -72,25 +60,13 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
     entitlements:
       path: ZeroTeirTunnel/ZeroTeirTunnel.entitlements
-      properties:
-        com.apple.developer.networking.networkextension:
-          - packet-tunnel-provider
-        com.apple.security.application-groups:
-          - group.com.zeroteir.vpn
-        com.apple.security.network.client: true
-        com.apple.security.network.server: true
-        com.apple.security.app-sandbox: false
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)com.zeroteir.vpn
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn.tunnel
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ENABLE_HARDENED_RUNTIME: true
-      CODE_SIGN_STYLE: Manual
-      CODE_SIGN_IDENTITY: "-"
-      PROVISIONING_PROFILE_SPECIFIER: ""
-      DEVELOPMENT_TEAM: AY453CNN45
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: 7552UR9ZVD
       LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
     dependencies:
       - package: WireGuardKit

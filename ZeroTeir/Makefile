@@ -27,6 +27,11 @@ xcodegen:
 	@echo "Generating Xcode project..."
 	@command -v xcodegen >/dev/null 2>&1 || { echo "xcodegen not found. Install with: brew install xcodegen"; exit 1; }
 	xcodegen generate
+	@# Fix XcodeGen bug: local SPM package reference not linked in product dependency
+	@PKGREF=$$(grep -B1 'XCLocalSwiftPackageReference' $(PROJECT_FILE)/project.pbxproj | head -1 | awk '{print $$1}'); \
+	if [ -n "$$PKGREF" ]; then \
+		sed -i '' "s/isa = XCSwiftPackageProductDependency;/isa = XCSwiftPackageProductDependency; package = $$PKGREF;/" $(PROJECT_FILE)/project.pbxproj; \
+	fi
 	@echo "Xcode project generated at $(PROJECT_FILE)"
 
 build: xcodegen
