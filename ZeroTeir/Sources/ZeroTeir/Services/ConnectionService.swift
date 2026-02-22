@@ -121,9 +121,11 @@ class ConnectionService: ObservableObject {
     private func getWireGuardConfig(headscaleClient: HeadscaleClient, endpoint: String) async throws -> WireGuardConfig {
         let privateKey = try getOrCreateWireGuardKey()
 
+        let s = appState.settings
+
         // AWS peer - routes all internet traffic
-        var awsAllowedIPs = "0.0.0.0/0"
-        if appState.settings.homeLANEnabled && !appState.settings.homeNASPublicKey.isEmpty {
+        var awsAllowedIPs = s.wireGuardAllowedIPs
+        if s.homeLANEnabled && !s.homeNASPublicKey.isEmpty {
             // When split tunnel is on, AWS gets everything except home subnet
             awsAllowedIPs = "0.0.0.0/1, 128.0.0.0/1"
         }
@@ -131,26 +133,26 @@ class ConnectionService: ObservableObject {
         var peers = [
             WireGuardPeer(
                 publicKey: "SERVER_PUBLIC_KEY_PLACEHOLDER",
-                endpoint: "\(endpoint):\(Constants.WireGuard.port)",
+                endpoint: "\(endpoint):\(s.wireGuardPort)",
                 allowedIPs: awsAllowedIPs,
-                persistentKeepalive: Constants.WireGuard.persistentKeepalive
+                persistentKeepalive: s.wireGuardPersistentKeepalive
             )
         ]
 
         // Home NAS peer - routes home LAN traffic
-        if appState.settings.homeLANEnabled && !appState.settings.homeNASPublicKey.isEmpty {
-            let homeEndpoint = appState.settings.homeNASEndpoint.isEmpty ? nil : appState.settings.homeNASEndpoint
+        if s.homeLANEnabled && !s.homeNASPublicKey.isEmpty {
+            let homeEndpoint = s.homeNASEndpoint.isEmpty ? nil : s.homeNASEndpoint
             peers.append(
                 WireGuardPeer(
-                    publicKey: appState.settings.homeNASPublicKey,
+                    publicKey: s.homeNASPublicKey,
                     endpoint: homeEndpoint,
-                    allowedIPs: appState.settings.homeSubnet,
-                    persistentKeepalive: Constants.WireGuard.persistentKeepalive
+                    allowedIPs: s.homeSubnet,
+                    persistentKeepalive: s.wireGuardPersistentKeepalive
                 )
             )
         }
 
-        let dns = appState.settings.homeLANEnabled ? Constants.HomeNetwork.defaultDNS : "1.1.1.1"
+        let dns = s.homeLANEnabled ? Constants.HomeNetwork.defaultDNS : s.wireGuardDNS
 
         let config = WireGuardConfig(
             privateKey: privateKey,

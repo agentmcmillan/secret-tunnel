@@ -38,6 +38,19 @@ class AppSettings {
     var launchAtLogin: Bool = false
     var autoDisconnectTimeout: TimeInterval = 0
 
+    // WireGuard
+    var wireGuardPort: Int = Constants.WireGuard.port
+    var wireGuardDNS: String = "1.1.1.1"
+    var wireGuardPersistentKeepalive: Int = Constants.WireGuard.persistentKeepalive
+    var wireGuardAllowedIPs: String = "0.0.0.0/0"
+
+    // AWS / Instance
+    var instanceType: String = "t3.micro"
+    var idleAutoStopMinutes: Int = 60
+
+    // Headscale
+    var headscaleNamespace: String = "default"
+
     // Home network / split tunnel
     var homeLANEnabled: Bool = false
     var homeNASEndpoint: String = ""
@@ -63,6 +76,31 @@ class AppSettings {
             if let region = try KeychainService.shared.load(key: "awsRegion") {
                 awsRegion = region
             }
+            // WireGuard
+            if let port = try KeychainService.shared.load(key: "wireGuardPort"), let p = Int(port) {
+                wireGuardPort = p
+            }
+            if let dns = try KeychainService.shared.load(key: "wireGuardDNS") {
+                wireGuardDNS = dns
+            }
+            if let ka = try KeychainService.shared.load(key: "wireGuardPersistentKeepalive"), let k = Int(ka) {
+                wireGuardPersistentKeepalive = k
+            }
+            if let ips = try KeychainService.shared.load(key: "wireGuardAllowedIPs") {
+                wireGuardAllowedIPs = ips
+            }
+            // AWS
+            if let iType = try KeychainService.shared.load(key: "instanceType") {
+                instanceType = iType
+            }
+            if let idle = try KeychainService.shared.load(key: "idleAutoStopMinutes"), let m = Int(idle) {
+                idleAutoStopMinutes = m
+            }
+            // Headscale
+            if let ns = try KeychainService.shared.load(key: "headscaleNamespace") {
+                headscaleNamespace = ns
+            }
+            // Home LAN
             if let homeEnabled = try KeychainService.shared.load(key: "homeLANEnabled") {
                 homeLANEnabled = homeEnabled == "true"
             }
@@ -75,6 +113,7 @@ class AppSettings {
             if let subnet = try KeychainService.shared.load(key: "homeSubnet") {
                 homeSubnet = subnet
             }
+            // UniFi
             if let unifiOn = try KeychainService.shared.load(key: "unifiEnabled") {
                 unifiEnabled = unifiOn == "true"
             }
@@ -90,6 +129,13 @@ class AppSettings {
         try KeychainService.shared.save(key: "lambdaApiEndpoint", value: lambdaApiEndpoint)
         try KeychainService.shared.save(key: "headscaleURL", value: headscaleURL)
         try KeychainService.shared.save(key: "awsRegion", value: awsRegion)
+        try KeychainService.shared.save(key: "wireGuardPort", value: String(wireGuardPort))
+        try KeychainService.shared.save(key: "wireGuardDNS", value: wireGuardDNS)
+        try KeychainService.shared.save(key: "wireGuardPersistentKeepalive", value: String(wireGuardPersistentKeepalive))
+        try KeychainService.shared.save(key: "wireGuardAllowedIPs", value: wireGuardAllowedIPs)
+        try KeychainService.shared.save(key: "instanceType", value: instanceType)
+        try KeychainService.shared.save(key: "idleAutoStopMinutes", value: String(idleAutoStopMinutes))
+        try KeychainService.shared.save(key: "headscaleNamespace", value: headscaleNamespace)
         try KeychainService.shared.save(key: "homeLANEnabled", value: homeLANEnabled ? "true" : "false")
         try KeychainService.shared.save(key: "homeNASEndpoint", value: homeNASEndpoint)
         try KeychainService.shared.save(key: "homeNASPublicKey", value: homeNASPublicKey)

@@ -160,10 +160,10 @@ struct MenuBarView: View {
         } else {
             let settingsView = SettingsView()
                 .environment(appState)
-                .frame(width: 520, height: 500)
+                .frame(width: 580, height: 520)
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
+                contentRect: NSRect(x: 0, y: 0, width: 580, height: 520),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false

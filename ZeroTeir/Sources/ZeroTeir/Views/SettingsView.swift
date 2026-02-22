@@ -18,6 +18,16 @@ struct SettingsView: View {
                     Label("Connection", systemImage: "network")
                 }
 
+            wireguardTab
+                .tabItem {
+                    Label("WireGuard", systemImage: "lock.shield")
+                }
+
+            awsTab
+                .tabItem {
+                    Label("AWS", systemImage: "cloud")
+                }
+
             networkTab
                 .tabItem {
                     Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
@@ -203,6 +213,183 @@ struct SettingsView: View {
         }
     }
 
+    private var wireguardTab: some View {
+        @Bindable var bindableSettings = appState.settings
+
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("WireGuard Configuration")
+                    .font(.headline)
+
+                Text("Customize WireGuard tunnel parameters. Changes take effect on next connection.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Port")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("51820", value: $bindableSettings.wireGuardPort, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Text("Default: 51820. Change if your network blocks this port.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DNS Servers")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("1.1.1.1", text: $bindableSettings.wireGuardDNS)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Comma-separated. Examples: 1.1.1.1, 8.8.8.8, 9.9.9.9")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Persistent Keepalive (seconds)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("25", value: $bindableSettings.wireGuardPersistentKeepalive, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Text("Sends keepalive packets to maintain NAT mappings. 25s is standard.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Allowed IPs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("0.0.0.0/0", text: $bindableSettings.wireGuardAllowedIPs)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Controls what traffic routes through the tunnel. 0.0.0.0/0 = all traffic.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Button("Reset to Defaults") {
+                        appState.settings.wireGuardPort = Constants.WireGuard.port
+                        appState.settings.wireGuardDNS = "1.1.1.1"
+                        appState.settings.wireGuardPersistentKeepalive = Constants.WireGuard.persistentKeepalive
+                        appState.settings.wireGuardAllowedIPs = "0.0.0.0/0"
+                    }
+                    Spacer()
+                    Button("Save") {
+                        saveSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding()
+        }
+    }
+
+    private var awsTab: some View {
+        @Bindable var bindableSettings = appState.settings
+
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("AWS & Instance Configuration")
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("AWS Region")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Picker("AWS Region", selection: $bindableSettings.awsRegion) {
+                        Text("US East (N. Virginia)").tag("us-east-1")
+                        Text("US East (Ohio)").tag("us-east-2")
+                        Text("US West (Oregon)").tag("us-west-2")
+                        Text("US West (N. California)").tag("us-west-1")
+                        Text("EU (Ireland)").tag("eu-west-1")
+                        Text("EU (London)").tag("eu-west-2")
+                        Text("EU (Frankfurt)").tag("eu-central-1")
+                        Text("AP (Tokyo)").tag("ap-northeast-1")
+                        Text("AP (Seoul)").tag("ap-northeast-2")
+                        Text("AP (Singapore)").tag("ap-southeast-1")
+                        Text("AP (Sydney)").tag("ap-southeast-2")
+                        Text("AP (Mumbai)").tag("ap-south-1")
+                        Text("SA (Sao Paulo)").tag("sa-east-1")
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Instance Type")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Picker("Instance Type", selection: $bindableSettings.instanceType) {
+                        Text("t3.micro (1 vCPU, 1 GB) - Free Tier").tag("t3.micro")
+                        Text("t3.small (2 vCPU, 2 GB)").tag("t3.small")
+                        Text("t3.medium (2 vCPU, 4 GB)").tag("t3.medium")
+                        Text("t3a.micro (1 vCPU, 1 GB) - AMD").tag("t3a.micro")
+                        Text("t3a.small (2 vCPU, 2 GB) - AMD").tag("t3a.small")
+                        Text("t4g.micro (2 vCPU, 1 GB) - ARM/Graviton").tag("t4g.micro")
+                        Text("t4g.small (2 vCPU, 2 GB) - ARM/Graviton").tag("t4g.small")
+                    }
+                    .pickerStyle(.menu)
+                    Text("Larger instances = faster VPN throughput but higher cost.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Idle Auto-Stop (minutes)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("60", value: $bindableSettings.idleAutoStopMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Text("Instance stops automatically after this many minutes of no traffic. 0 = never.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                Text("Headscale")
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Namespace / User")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("default", text: $bindableSettings.headscaleNamespace)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Headscale user namespace for this client. Usually 'default'.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Auto-Disconnect Timeout (minutes)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("0", value: $bindableSettings.autoDisconnectTimeout, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    Text("Automatically disconnect after this many minutes. 0 = never.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Save") {
+                        saveSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding()
+        }
+    }
+
     private var generalTab: some View {
         @Bindable var bindableSettings = appState.settings
 
@@ -212,25 +399,15 @@ struct SettingsView: View {
 
             Toggle("Launch at Login", isOn: $bindableSettings.launchAtLogin)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("AWS Region")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Picker("AWS Region", selection: $bindableSettings.awsRegion) {
-                    Text("US East (N. Virginia)").tag("us-east-1")
-                    Text("US West (Oregon)").tag("us-west-2")
-                    Text("EU (Ireland)").tag("eu-west-1")
-                    Text("EU (Frankfurt)").tag("eu-central-1")
-                    Text("AP (Tokyo)").tag("ap-northeast-1")
-                    Text("AP (Singapore)").tag("ap-southeast-1")
-                }
-                .pickerStyle(.menu)
-            }
-
             Spacer()
 
             HStack {
                 Spacer()
+                Button("Save") {
+                    saveSettings()
+                }
+                .buttonStyle(.borderedProminent)
+
                 Button("Close") {
                     closeWindow()
                 }
