@@ -1,0 +1,27 @@
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+*.xcodeproj/
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcworkspace
+
+# App bundle
+*.app/
+
+# macOS
+.DS_Store
+
+# WireGuard configs (contain secrets)
+*.conf
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.swiftmodule
+*.swiftdoc

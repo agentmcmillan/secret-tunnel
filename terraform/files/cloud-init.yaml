@@ -1,0 +1,252 @@
+#cloud-config
+# ZeroTeir VPN Server Cloud-Init Configuration
+# Installs and configures Headscale + WireGuard
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - wireguard
+  - wireguard-tools
+  - curl
+  - wget
+  - jq
+  - fail2ban
+  - ufw
+  - unattended-upgrades
+  - apt-listchanges
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+
+write_files:
+  # Headscale systemd service
+  - path: /etc/systemd/system/headscale.service
+    content: |
+      [Unit]
+      Description=Headscale Control Server
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=headscale
+      Group=headscale
+      ExecStart=/usr/local/bin/headscale serve
+      Restart=on-failure
+      RestartSec=5s
+
+      # Security hardening
+      NoNewPrivileges=true
+      PrivateTmp=true
+      ProtectSystem=strict
+      ProtectHome=true
+      ReadWritePaths=/var/lib/headscale /var/run/headscale
+      AmbientCapabilities=CAP_NET_BIND_SERVICE
+      CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # Headscale configuration
+  - path: /etc/headscale/config.yaml
+    content: |
+      ---
+      # Headscale configuration for ZeroTeir
+      server_url: ${headscale_url}
+      listen_addr: 0.0.0.0:8080
+      metrics_listen_addr: 127.0.0.1:9090
+      grpc_listen_addr: 0.0.0.0:50443
+      grpc_allow_insecure: false
+
+      # Private key path
+      private_key_path: /var/lib/headscale/private.key
+      noise:
+        private_key_path: /var/lib/headscale/noise_private.key
+
+      # IP Prefixes for Tailscale network
+      prefixes:
+        v4: 100.64.0.0/10
+        v6: fd7a:115c:a1e0::/48
+
+      # DERP configuration
+      derp:
+        server:
+          enabled: true
+          region_id: 999
+          region_code: "custom"
+          region_name: "ZeroTeir DERP"
+          stun_listen_addr: "0.0.0.0:3478"
+        urls:
+          - https://controlplane.tailscale.com/derpmap/default
+        auto_update_enabled: true
+        update_frequency: 24h
+
+      # Database
+      database:
+        type: sqlite3
+        sqlite:
+          path: /var/lib/headscale/db.sqlite
+
+      # ACL Policy
+      acl_policy_path: /etc/headscale/acl.yaml
+
+      # DNS Configuration
+      dns_config:
+        override_local_dns: true
+        nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
+        domains: []
+        magic_dns: true
+        base_domain: zeroteir.internal
+
+      # Logging
+      log:
+        format: text
+        level: info
+
+      # Disable update checks
+      disable_check_updates: false
+
+      # Ephemeral node configuration
+      ephemeral_node_inactivity_timeout: 30m
+
+      # Unix socket
+      unix_socket: /var/run/headscale/headscale.sock
+      unix_socket_permission: "0770"
+
+  # ACL Policy
+  - path: /etc/headscale/acl.yaml
+    content: |
+      acls:
+        # Allow all traffic by default
+        - action: accept
+          src:
+            - "*"
+          dst:
+            - "*:*"
+
+  # Fail2ban configuration for SSH
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = 3600
+      findtime = 600
+      maxretry = 5
+
+      [sshd]
+      enabled = true
+      port = ssh
+      logpath = /var/log/auth.log
+
+  # Nginx configuration for Headscale
+  - path: /etc/nginx/sites-available/headscale
+    content: |
+      server {
+          listen 80;
+          server_name ${elastic_ip};
+
+          location / {
+              proxy_pass http://127.0.0.1:8080;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+          }
+
+          # Health check endpoint
+          location /health {
+              access_log off;
+              return 200 "healthy\n";
+              add_header Content-Type text/plain;
+          }
+      }
+
+  # Unattended upgrades configuration
+  - path: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "$${distro_id}:$${distro_codename}";
+          "$${distro_id}:$${distro_codename}-security";
+          "$${distro_id}ESMApps:$${distro_codename}-apps-security";
+          "$${distro_id}ESM:$${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+      Unattended-Upgrade::MinimalSteps "true";
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+
+runcmd:
+  # Enable IP forwarding
+  - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+  - echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
+  - sysctl -p
+
+  # Create headscale user and directories
+  - useradd -r -s /bin/false -d /var/lib/headscale headscale
+  - mkdir -p /var/lib/headscale
+  - mkdir -p /var/run/headscale
+  - mkdir -p /etc/headscale
+  - chown -R headscale:headscale /var/lib/headscale
+  - chown -R headscale:headscale /var/run/headscale
+  - chown -R headscale:headscale /etc/headscale
+
+  # Download and install Headscale
+  - wget -O /tmp/headscale.deb "https://github.com/juanfont/headscale/releases/download/v${headscale_version}/headscale_${headscale_version}_linux_amd64.deb"
+  - dpkg -i /tmp/headscale.deb
+  - rm /tmp/headscale.deb
+
+  # Configure Nginx
+  - rm -f /etc/nginx/sites-enabled/default
+  - ln -sf /etc/nginx/sites-available/headscale /etc/nginx/sites-enabled/headscale
+  - systemctl reload nginx
+
+  # Configure firewall (UFW)
+  - ufw --force enable
+  - ufw allow 22/tcp comment "SSH"
+  - ufw allow 80/tcp comment "HTTP"
+  - ufw allow 443/tcp comment "HTTPS"
+  - ufw allow 50443/tcp comment "Headscale gRPC"
+  - ufw allow 51820/udp comment "WireGuard"
+  - ufw allow 3478/udp comment "STUN"
+
+  # Enable and start services
+  - systemctl daemon-reload
+  - systemctl enable headscale
+  - systemctl start headscale
+  - systemctl enable fail2ban
+  - systemctl start fail2ban
+  - systemctl enable nginx
+  - systemctl start nginx
+
+  # Configure iptables for NAT
+  - iptables -t nat -A POSTROUTING -s 100.64.0.0/10 -o $(ip route | grep default | awk '{print $5}') -j MASQUERADE
+  - iptables-save > /etc/iptables.rules
+
+  # Create iptables restore service
+  - |
+    cat > /etc/systemd/system/iptables-restore.service <<EOF
+    [Unit]
+    Description=Restore iptables rules
+    Before=network-pre.target
+
+    [Service]
+    Type=oneshot
+    ExecStart=/sbin/iptables-restore /etc/iptables.rules
+    ExecStart=/sbin/ip6tables-restore /etc/ip6tables.rules
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+  - systemctl enable iptables-restore
+
+  # Create default namespace
+  - sleep 5
+  - headscale namespaces create default || true
+
+  # Log completion
+  - echo "ZeroTeir VPN setup complete - $(date)" >> /var/log/cloud-init-complete.log
+
+final_message: "ZeroTeir VPN server is ready! Headscale is running at ${headscale_url}"

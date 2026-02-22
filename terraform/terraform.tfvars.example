@@ -1,0 +1,37 @@
+# ZeroTeir Terraform Configuration Example
+# Copy this file to terraform.tfvars and customize for your environment
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# REQUIRED: SSH Key Name
+# Must be an existing SSH key pair in your AWS account
+ssh_key_name = "your-ssh-key-name"
+
+# Security Configuration
+# IMPORTANT: Restrict to your IP address for production!
+# Find your IP: curl https://checkip.amazonaws.com
+admin_ip = "0.0.0.0/0"  # WARNING: Open to all IPs - change this!
+
+# Instance Configuration
+instance_type      = "t3.micro"
+root_volume_size   = 8
+
+# Headscale Configuration
+headscale_version = "0.23.0"
+# headscale_domain = "vpn.example.com"  # Optional: Use custom domain instead of Elastic IP
+
+# Auto-Stop Configuration
+idle_timeout_minutes       = 60  # Stop instance after 60 minutes of no activity
+idle_check_rate_minutes    = 5   # Check for idle every 5 minutes
+
+# Project Configuration
+project_name = "ZeroTeir"
+environment  = "prod"
+
+# CloudWatch Configuration
+log_retention_days = 30
+
+# API Gateway Throttling
+api_throttle_rate_limit  = 10  # requests per second
+api_throttle_burst_limit = 20  # burst capacity
