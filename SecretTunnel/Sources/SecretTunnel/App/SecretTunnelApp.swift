@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct ZeroTeirApp: App {
+struct SecretTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {

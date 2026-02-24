@@ -1,5 +1,5 @@
 """
-ZeroTeir Instance Control Lambda
+Secret Tunnel Instance Control Lambda
 Handles starting, stopping, and status checking of the VPN EC2 instance.
 """
 

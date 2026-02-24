@@ -110,7 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
-        window.title = "ZeroTeir Setup"
+        window.title = "Secret Tunnel Setup"
         window.contentView = NSHostingView(rootView: onboardingView)
         window.center()
         window.makeKeyAndOrderFront(nil)

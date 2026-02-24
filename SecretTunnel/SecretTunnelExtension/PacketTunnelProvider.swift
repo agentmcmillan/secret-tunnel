@@ -5,30 +5,30 @@ import os
 class PacketTunnelProvider: NEPacketTunnelProvider {
     private lazy var adapter: WireGuardAdapter = {
         WireGuardAdapter(with: self) { logLevel, message in
-            Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "WireGuard")
+            Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "WireGuard")
                 .log(level: logLevel.osLogLevel, "\(message)")
         }
     }()
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+        Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
             .info("Starting tunnel with options: \(String(describing: options))")
 
         guard let protocolConfiguration = protocolConfiguration as? NETunnelProviderProtocol,
               let providerConfiguration = protocolConfiguration.providerConfiguration,
               let wgQuickConfig = providerConfiguration["wgQuickConfig"] as? String else {
-            Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+            Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
                 .error("Missing WireGuard configuration")
-            completionHandler(NSError(domain: "com.zeroteir.vpn.tunnel",
+            completionHandler(NSError(domain: "com.secrettunnel.vpn.tunnel",
                                      code: 1,
                                      userInfo: [NSLocalizedDescriptionKey: "Missing WireGuard configuration"]))
             return
         }
 
         guard let tunnelConfiguration = parseWgQuickConfig(wgQuickConfig) else {
-            Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+            Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
                 .error("Failed to parse WireGuard config")
-            completionHandler(NSError(domain: "com.zeroteir.vpn.tunnel",
+            completionHandler(NSError(domain: "com.secrettunnel.vpn.tunnel",
                                      code: 2,
                                      userInfo: [NSLocalizedDescriptionKey: "Failed to parse WireGuard configuration"]))
             return
@@ -36,11 +36,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         adapter.start(tunnelConfiguration: tunnelConfiguration) { error in
             if let error = error {
-                Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+                Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
                     .error("Failed to start tunnel: \(error.localizedDescription)")
                 completionHandler(error)
             } else {
-                Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+                Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
                     .info("Tunnel started successfully")
                 completionHandler(nil)
             }
@@ -48,12 +48,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+        Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
             .info("Stopping tunnel, reason: \(reason.rawValue)")
 
         adapter.stop { error in
             if let error = error {
-                Logger(subsystem: "com.zeroteir.vpn.tunnel", category: "Tunnel")
+                Logger(subsystem: "com.secrettunnel.vpn.tunnel", category: "Tunnel")
                     .error("Error stopping tunnel: \(error.localizedDescription)")
             }
             completionHandler()
@@ -201,7 +201,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         interfaceConfig.addresses = addresses
         interfaceConfig.dns = dns
 
-        return TunnelConfiguration(name: "ZeroTeir", interface: interfaceConfig, peers: peers)
+        return TunnelConfiguration(name: "Secret Tunnel", interface: interfaceConfig, peers: peers)
     }
 
     private func parseRuntimeStats(_ config: String) -> TunnelStats {

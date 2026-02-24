@@ -1,6 +1,6 @@
 .PHONY: build release dmg clean run help xcodegen check
 
-APP_NAME = ZeroTeir
+APP_NAME = SecretTunnel
 PROJECT_FILE = $(APP_NAME).xcodeproj
 SCHEME = $(APP_NAME)
 TEAM_ID = 7552UR9ZVD
@@ -12,7 +12,7 @@ EXPORT_PATH = $(BUILD_DIR)/Export
 DMG_PATH = $(BUILD_DIR)/$(APP_NAME).dmg
 
 help:
-	@echo "ZeroTeir Build System (XcodeGen + NetworkExtension)"
+	@echo "Secret Tunnel Build System (XcodeGen + NetworkExtension)"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  make xcodegen - Generate Xcode project from project.yml"

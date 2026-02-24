@@ -156,7 +156,7 @@ struct MenuBarView: View {
     }
 
     private var quitButton: some View {
-        Button("Quit ZeroTeir") {
+        Button("Quit Secret Tunnel") {
             NSApplication.shared.terminate(nil)
         }
     }
@@ -177,7 +177,7 @@ struct MenuBarView: View {
                 defer: false
             )
             window.identifier = NSUserInterfaceItemIdentifier("settings")
-            window.title = "ZeroTeir Settings"
+            window.title = "Secret Tunnel Settings"
             window.contentView = NSHostingView(rootView: settingsView)
             window.center()
             window.makeKeyAndOrderFront(nil)

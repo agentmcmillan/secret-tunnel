@@ -1,5 +1,5 @@
 #!/bin/bash
-# ZeroTeir Dependency Version Checker
+# Secret Tunnel Dependency Version Checker
 # Checks for latest versions of key dependencies
 
 set -e
@@ -9,7 +9,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo "ZeroTeir Dependency Version Check"
+echo "Secret Tunnel Dependency Version Check"
 echo "================================="
 echo ""
 

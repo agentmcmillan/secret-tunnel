@@ -38,7 +38,7 @@ data "aws_ami" "ubuntu" {
 # Security Group for VPN Server
 resource "aws_security_group" "vpn" {
   name        = "${var.project_name}-vpn-sg"
-  description = "Security group for ZeroTeir VPN server"
+  description = "Security group for Secret Tunnel VPN server"
 
   # SSH access from admin IP
   ingress {
@@ -195,7 +195,7 @@ resource "aws_iam_role_policy" "vpn_ssm" {
           "ssm:GetParameter",
           "ssm:DeleteParameter"
         ]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/zeroteir/*"
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/secrettunnel/*"
       }
     ]
   })

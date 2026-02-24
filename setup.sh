@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# ZeroTeir Infrastructure Setup
+# Secret Tunnel Infrastructure Setup
 # One-command deployment of AWS infrastructure + Headscale bootstrap
 #
 # Usage: ./setup.sh [--profile AWS_PROFILE] [--region REGION] [--dry-run]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TERRAFORM_DIR="$SCRIPT_DIR/terraform"
-SSH_KEY_NAME="zeroteir-key"
+SSH_KEY_NAME="secrettunnel-key"
 SSH_KEY_PATH="$HOME/.ssh/$SSH_KEY_NAME.pem"
 
 # Defaults
@@ -52,7 +52,7 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 
 echo ""
 echo "============================================"
-echo "  ZeroTeir Infrastructure Setup"
+echo "  Secret Tunnel Infrastructure Setup"
 echo "============================================"
 echo "  Profile: $AWS_PROFILE"
 echo "  Region:  $AWS_REGION"
@@ -197,7 +197,7 @@ INTERVAL=15
 
 while [[ $WAITED -lt $MAX_WAIT ]]; do
     HEADSCALE_API_KEY=$(aws ssm get-parameter \
-        --name "/zeroteir/headscale-api-key" \
+        --name "/secrettunnel/headscale-api-key" \
         --with-decryption \
         --query 'Parameter.Value' \
         --output text 2>/dev/null || echo "")
@@ -215,17 +215,17 @@ done
 if [[ -z "$HEADSCALE_API_KEY" || "$HEADSCALE_API_KEY" == "None" ]]; then
     warn "Timed out waiting for Headscale API key"
     warn "Cloud-init may still be running. You can retrieve it later with:"
-    echo "  aws ssm get-parameter --name /zeroteir/headscale-api-key --with-decryption --query Parameter.Value --output text --profile $AWS_PROFILE"
+    echo "  aws ssm get-parameter --name /secrettunnel/headscale-api-key --with-decryption --query Parameter.Value --output text --profile $AWS_PROFILE"
     HEADSCALE_API_KEY="(pending - check SSM later)"
 fi
 
 # Step 8: Output configuration
 echo ""
 echo "============================================"
-echo "  ZeroTeir Setup Complete!"
+echo "  Secret Tunnel Setup Complete!"
 echo "============================================"
 echo ""
-echo "Enter these values in the ZeroTeir app Settings > Connection tab:"
+echo "Enter these values in the Secret Tunnel app Settings > Connection tab:"
 echo ""
 echo "  Lambda API Endpoint:  $API_ENDPOINT"
 echo "  Lambda API Key:       $API_KEY"
@@ -242,9 +242,9 @@ echo ""
 echo "============================================"
 
 # Save config to a local file for reference
-CONFIG_FILE="$SCRIPT_DIR/.zeroteir-config"
+CONFIG_FILE="$SCRIPT_DIR/.secrettunnel-config"
 cat > "$CONFIG_FILE" <<EOF
-# ZeroTeir Configuration - Generated $(date -Iseconds)
+# Secret Tunnel Configuration - Generated $(date -Iseconds)
 # DO NOT COMMIT THIS FILE
 LAMBDA_API_ENDPOINT=$API_ENDPOINT
 LAMBDA_API_KEY=$API_KEY

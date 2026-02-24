@@ -14,7 +14,7 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Text("Welcome to ZeroTeir")
+            Text("Welcome to Secret Tunnel")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
@@ -79,7 +79,7 @@ struct OnboardingView: View {
             Text("Secure VPN Access")
                 .font(.title2)
 
-            Text("ZeroTeir provides on-demand VPN access through AWS EC2 and Headscale.")
+            Text("Secret Tunnel provides on-demand VPN access through AWS EC2 and Headscale.")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
 
@@ -103,7 +103,7 @@ struct OnboardingView: View {
                 .foregroundColor(.secondary)
 
             helpBox(steps: [
-                "Run ./setup.sh --profile zeroteir from the project root",
+                "Run ./setup.sh --profile secrettunnel from the project root",
                 "Or find these values in your Terraform outputs:",
                 "  cd terraform && terraform output",
                 "API Endpoint = api_endpoint output",
@@ -143,7 +143,7 @@ struct OnboardingView: View {
                 "If you used setup.sh, these values were printed at the end",
                 "Headscale URL = https://<your-elastic-ip>",
                 "API Key is auto-generated and stored in AWS SSM:",
-                "  aws ssm get-parameter --name /zeroteir/headscale-api-key \\",
+                "  aws ssm get-parameter --name /secrettunnel/headscale-api-key \\",
                 "    --with-decryption --query Parameter.Value --output text"
             ])
 
@@ -198,7 +198,7 @@ struct OnboardingView: View {
             Text("Run this from the project root to deploy infrastructure and get all config values automatically:")
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            Text("./setup.sh --profile zeroteir")
+            Text("./setup.sh --profile secrettunnel")
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)
                 .padding(4)

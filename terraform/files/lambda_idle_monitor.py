@@ -1,5 +1,5 @@
 """
-ZeroTeir Idle Monitor Lambda
+Secret Tunnel Idle Monitor Lambda
 Monitors Headscale connections and auto-stops instance when idle.
 """
 
@@ -26,7 +26,7 @@ cloudwatch = boto3.client('cloudwatch')
 INSTANCE_ID = os.environ['INSTANCE_ID']
 HEADSCALE_URL = os.environ['HEADSCALE_URL']
 IDLE_TIMEOUT_MINUTES = int(os.environ.get('IDLE_TIMEOUT_MINUTES', '60'))
-CLOUDWATCH_NAMESPACE = os.environ.get('CLOUDWATCH_NAMESPACE', 'ZeroTeir')
+CLOUDWATCH_NAMESPACE = os.environ.get('CLOUDWATCH_NAMESPACE', 'SecretTunnel')
 
 
 def get_instance_state() -> str:
@@ -61,7 +61,7 @@ def check_headscale_health() -> bool:
         logger.info(f"Checking Headscale health at {health_url}")
 
         req = request.Request(health_url, method='GET')
-        req.add_header('User-Agent', 'ZeroTeir-IdleMonitor/1.0')
+        req.add_header('User-Agent', 'SecretTunnel-IdleMonitor/1.0')
 
         with request.urlopen(req, timeout=10) as response:
             if response.status == 200:

@@ -1,11 +1,11 @@
 import Foundation
 
 enum Constants {
-    static let bundleIdentifier = "com.zeroteir.vpn"
-    static let tunnelBundleIdentifier = "com.zeroteir.vpn.tunnel"
-    static let appGroupIdentifier = "group.com.zeroteir.vpn"
-    static let appName = "ZeroTeir"
-    static let configDirectory = ".zeroteir"
+    static let bundleIdentifier = "com.secrettunnel.vpn"
+    static let tunnelBundleIdentifier = "com.secrettunnel.vpn.tunnel"
+    static let appGroupIdentifier = "group.com.secrettunnel.vpn"
+    static let appName = "Secret Tunnel"
+    static let configDirectory = ".secrettunnel"
     static let wireguardConfigName = "wg0.conf"
 
     enum Timeouts {
@@ -28,7 +28,7 @@ enum Constants {
     }
 
     enum Keychain {
-        static let service = "com.zeroteir.vpn"
+        static let service = "com.secrettunnel.vpn"
         static let lambdaApiKeyAccount = "lambdaApiKey"
         static let headscaleApiKeyAccount = "headscaleApiKey"
         static let wireguardPrivateKeyAccount = "wireguardPrivateKey"

@@ -1,5 +1,5 @@
 #cloud-config
-# ZeroTeir VPN Server Cloud-Init Configuration
+# Secret Tunnel VPN Server Cloud-Init Configuration
 # Installs and configures Headscale + WireGuard
 
 package_update: true
@@ -53,7 +53,7 @@ write_files:
   - path: /etc/headscale/config.yaml
     content: |
       ---
-      # Headscale configuration for ZeroTeir
+      # Headscale configuration for Secret Tunnel
       server_url: ${headscale_url}
       listen_addr: 0.0.0.0:8080
       metrics_listen_addr: 127.0.0.1:9090
@@ -76,7 +76,7 @@ write_files:
           enabled: true
           region_id: 999
           region_code: "custom"
-          region_name: "ZeroTeir DERP"
+          region_name: "Secret Tunnel DERP"
           stun_listen_addr: "0.0.0.0:3478"
         urls:
           - https://controlplane.tailscale.com/derpmap/default
@@ -100,7 +100,7 @@ write_files:
           - 8.8.8.8
         domains: []
         magic_dns: true
-        base_domain: zeroteir.internal
+        base_domain: secrettunnel.internal
 
       # Logging
       log:
@@ -262,7 +262,7 @@ runcmd:
     HEADSCALE_API_KEY=$(headscale apikeys create --expiration 365d 2>/dev/null | tail -1)
     if [ -n "$HEADSCALE_API_KEY" ]; then
       aws ssm put-parameter \
-        --name "/zeroteir/headscale-api-key" \
+        --name "/secrettunnel/headscale-api-key" \
         --value "$HEADSCALE_API_KEY" \
         --type SecureString \
         --overwrite \
@@ -279,6 +279,6 @@ runcmd:
   - iptables-save > /etc/iptables.rules
 
   # Log completion
-  - echo "ZeroTeir VPN setup complete - $(date)" >> /var/log/cloud-init-complete.log
+  - echo "Secret Tunnel VPN setup complete - $(date)" >> /var/log/cloud-init-complete.log
 
-final_message: "ZeroTeir VPN server is ready! Headscale is running at ${headscale_url}"
+final_message: "Secret Tunnel VPN server is ready! Headscale is running at ${headscale_url}"

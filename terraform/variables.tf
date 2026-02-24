@@ -60,7 +60,7 @@ variable "idle_check_rate_minutes" {
 variable "project_name" {
   description = "Project name for resource tagging"
   type        = string
-  default     = "ZeroTeir"
+  default     = "SecretTunnel"
 }
 
 variable "environment" {

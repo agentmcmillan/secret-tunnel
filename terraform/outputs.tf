@@ -43,7 +43,7 @@ output "usage_instructions" {
   description = "Quick start instructions"
   value = <<-EOT
 
-    ===== ZeroTeir VPN Setup Instructions =====
+    ===== Secret Tunnel VPN Setup Instructions =====
 
     1. Elastic IP: ${aws_eip.vpn.public_ip}
     2. Instance ID: ${aws_instance.vpn.id}

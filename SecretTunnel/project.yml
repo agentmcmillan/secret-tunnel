@@ -1,6 +1,6 @@
-name: ZeroTeir
+name: SecretTunnel
 options:
-  bundleIdPrefix: com.zeroteir
+  bundleIdPrefix: com.secrettunnel
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -10,12 +10,12 @@ packages:
     path: LocalPackages/wireguard-apple
 
 targets:
-  ZeroTeir:
+  SecretTunnel:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - path: Sources/ZeroTeir
+      - path: Sources/SecretTunnel
       - path: Shared
     resources:
       - Resources/Assets.xcassets
@@ -23,12 +23,12 @@ targets:
       path: Resources/Info.plist
       properties:
         LSUIElement: true
-        CFBundleIdentifier: com.zeroteir.vpn
+        CFBundleIdentifier: com.secrettunnel.vpn
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn
-      CODE_SIGN_ENTITLEMENTS: Resources/ZeroTeir.entitlements
+      PRODUCT_BUNDLE_IDENTIFIER: com.secrettunnel.vpn
+      CODE_SIGN_ENTITLEMENTS: Resources/SecretTunnel.entitlements
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -37,29 +37,29 @@ targets:
       CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: 7552UR9ZVD
     dependencies:
-      - target: ZeroTeirTunnel
+      - target: SecretTunnelExtension
         embed: true
       - sdk: NetworkExtension.framework
 
-  ZeroTeirTunnel:
+  SecretTunnelExtension:
     type: app-extension
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - path: ZeroTeirTunnel
+      - path: SecretTunnelExtension
       - path: Shared
     info:
-      path: ZeroTeirTunnel/Info.plist
+      path: SecretTunnelExtension/Info.plist
       properties:
-        CFBundleIdentifier: com.zeroteir.vpn.tunnel
+        CFBundleIdentifier: com.secrettunnel.vpn.tunnel
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.zeroteir.vpn.tunnel
-      CODE_SIGN_ENTITLEMENTS: ZeroTeirTunnel/ZeroTeirTunnel.entitlements
+      PRODUCT_BUNDLE_IDENTIFIER: com.secrettunnel.vpn.tunnel
+      CODE_SIGN_ENTITLEMENTS: SecretTunnelExtension/SecretTunnelExtension.entitlements
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ENABLE_HARDENED_RUNTIME: true

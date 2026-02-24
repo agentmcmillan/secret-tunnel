@@ -9,7 +9,7 @@ fi
 APP_PATH="$1"
 OUTPUT_DMG="$2"
 TEMP_DMG="${OUTPUT_DMG%.dmg}-temp.dmg"
-VOLUME_NAME="ZeroTeir"
+VOLUME_NAME="Secret Tunnel"
 MOUNT_POINT="/Volumes/${VOLUME_NAME}"
 
 # Cleanup on exit

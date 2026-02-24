@@ -23,8 +23,8 @@ Desktop.ini
 *~
 
 # Build artifacts
-ZeroTeir/build/
-ZeroTeir/*.xcodeproj/
+SecretTunnel/build/
+SecretTunnel/*.xcodeproj/
 *.xcworkspace/
 DerivedData/
 
@@ -34,20 +34,20 @@ terraform/terraform.tfstate*
 terraform/terraform.tfvars
 
 # Setup script output
-.zeroteir-config
+.secrettunnel-config
 
 # Memory system
 alpha-wave/
 rem/
-ZeroTeir/rem/
+SecretTunnel/rem/
 terraform/rem/
 
 # Generated docs
-ZeroTeir/FILES.md
-ZeroTeir/INDEX.md
-ZeroTeir/IMPLEMENTATION_SUMMARY.md
-ZeroTeir/MIGRATION_NOTES.md
-ZeroTeir/RELEASE_NOTES.md
+SecretTunnel/FILES.md
+SecretTunnel/INDEX.md
+SecretTunnel/IMPLEMENTATION_SUMMARY.md
+SecretTunnel/MIGRATION_NOTES.md
+SecretTunnel/RELEASE_NOTES.md
 TERRAFORM_IMPLEMENTATION_COMPLETE.md
 
 # Claude

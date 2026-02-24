@@ -35,9 +35,9 @@ class TunnelManager {
             let newManager = NETunnelProviderManager()
             let protocolConfiguration = NETunnelProviderProtocol()
             protocolConfiguration.providerBundleIdentifier = Constants.tunnelBundleIdentifier
-            protocolConfiguration.serverAddress = "ZeroTeir VPN"
+            protocolConfiguration.serverAddress = "Secret Tunnel VPN"
             newManager.protocolConfiguration = protocolConfiguration
-            newManager.localizedDescription = "ZeroTeir VPN"
+            newManager.localizedDescription = "Secret Tunnel VPN"
             newManager.isEnabled = true
 
             try await newManager.saveToPreferences()

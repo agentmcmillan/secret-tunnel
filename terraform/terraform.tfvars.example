@@ -1,4 +1,4 @@
-# ZeroTeir Terraform Configuration Example
+# Secret Tunnel Terraform Configuration Example
 # Copy this file to terraform.tfvars and customize for your environment
 
 # AWS Configuration
@@ -26,7 +26,7 @@ idle_timeout_minutes       = 60  # Stop instance after 60 minutes of no activity
 idle_check_rate_minutes    = 5   # Check for idle every 5 minutes
 
 # Project Configuration
-project_name = "ZeroTeir"
+project_name = "SecretTunnel"
 environment  = "prod"
 
 # CloudWatch Configuration

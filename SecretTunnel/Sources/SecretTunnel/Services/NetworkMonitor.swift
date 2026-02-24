@@ -4,7 +4,7 @@ import Network
 @Observable
 class NetworkMonitor {
     private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "com.zeroteir.networkmonitor")
+    private let queue = DispatchQueue(label: "com.secrettunnel.networkmonitor")
 
     var isConnected: Bool = true
     var connectionType: NWInterface.InterfaceType?
