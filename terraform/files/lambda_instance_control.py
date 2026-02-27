@@ -68,10 +68,13 @@ def get_instance_info() -> Dict[str, Any]:
 
         instance = response['Reservations'][0]['Instances'][0]
 
+        state = instance['State']['Name']
         return {
             'instanceId': INSTANCE_ID,
-            'state': instance['State']['Name'],
+            'state': state,
+            'status': state,
             'publicIp': instance.get('PublicIpAddress', None),
+            'privateIp': instance.get('PrivateIpAddress', None),
             'launchTime': instance.get('LaunchTime', '').isoformat() if instance.get('LaunchTime') else None,
             'instanceType': instance.get('InstanceType', 'unknown')
         }

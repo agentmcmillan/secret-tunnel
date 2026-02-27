@@ -75,6 +75,11 @@ class AppSettings {
     var homeNASPublicKey: String = ""
     var homeSubnet: String = Constants.HomeNetwork.defaultSubnet
 
+    // Security
+    var killSwitchEnabled: Bool = false
+    var autoConnectUntrustedWiFi: Bool = false
+    var trustedWiFiNetworks: String = ""  // Comma-separated SSIDs
+
     // UniFi travel router
     var unifiEnabled: Bool = false
     var unifiPeerPublicKey: String = ""
@@ -131,6 +136,16 @@ class AppSettings {
             if let subnet = try KeychainService.shared.load(key: "homeSubnet") {
                 homeSubnet = subnet
             }
+            // Security
+            if let ks = try KeychainService.shared.load(key: "killSwitchEnabled") {
+                killSwitchEnabled = ks == "true"
+            }
+            if let ac = try KeychainService.shared.load(key: "autoConnectUntrustedWiFi") {
+                autoConnectUntrustedWiFi = ac == "true"
+            }
+            if let tw = try KeychainService.shared.load(key: "trustedWiFiNetworks") {
+                trustedWiFiNetworks = tw
+            }
             // UniFi
             if let unifiOn = try KeychainService.shared.load(key: "unifiEnabled") {
                 unifiEnabled = unifiOn == "true"
@@ -158,6 +173,9 @@ class AppSettings {
         try KeychainService.shared.save(key: "homeNASEndpoint", value: homeNASEndpoint)
         try KeychainService.shared.save(key: "homeNASPublicKey", value: homeNASPublicKey)
         try KeychainService.shared.save(key: "homeSubnet", value: homeSubnet)
+        try KeychainService.shared.save(key: "killSwitchEnabled", value: killSwitchEnabled ? "true" : "false")
+        try KeychainService.shared.save(key: "autoConnectUntrustedWiFi", value: autoConnectUntrustedWiFi ? "true" : "false")
+        try KeychainService.shared.save(key: "trustedWiFiNetworks", value: trustedWiFiNetworks)
         try KeychainService.shared.save(key: "unifiEnabled", value: unifiEnabled ? "true" : "false")
         try KeychainService.shared.save(key: "unifiPeerPublicKey", value: unifiPeerPublicKey)
     }

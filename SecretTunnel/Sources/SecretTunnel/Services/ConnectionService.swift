@@ -8,6 +8,7 @@ class ConnectionService: ObservableObject {
     private let networkMonitor: NetworkMonitor
 
     private var monitoringTask: Task<Void, Never>?
+    private var autoDisconnectTask: Task<Void, Never>?
     private var connectionStartTime: Date?
     private var reconnectAttempts = 0
 
@@ -22,6 +23,30 @@ class ConnectionService: ObservableObject {
                 await self.handleNetworkRecovery()
             }
         }
+
+        networkMonitor.onUntrustedWiFiJoined = { [weak self] ssid in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handleUntrustedWiFi(ssid: ssid)
+            }
+        }
+    }
+
+    private func handleUntrustedWiFi(ssid: String) async {
+        guard appState.settings.autoConnectUntrustedWiFi else { return }
+        guard !appState.connectionState.isConnected && !appState.connectionState.isConnecting else { return }
+
+        let trustedList = appState.settings.trustedWiFiNetworks
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+
+        if trustedList.contains(ssid.lowercased()) {
+            Log.connection.info("WiFi '\(ssid)' is trusted, skipping auto-connect")
+            return
+        }
+
+        Log.connection.info("Untrusted WiFi '\(ssid)' detected, auto-connecting VPN...")
+        await connect()
     }
 
     private func handleNetworkRecovery() async {
@@ -49,51 +74,74 @@ class ConnectionService: ObservableObject {
         appState.clearError()
 
         do {
-            let apiKey = try appState.settings.getLambdaApiKey()
-            let headscaleApiKey = try appState.settings.getHeadscaleApiKey()
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await self.performConnect()
+                }
 
-            guard let lambdaURL = URL(string: appState.settings.lambdaApiEndpoint) else {
-                throw AppError.configurationMissing("Invalid Lambda API endpoint")
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 120_000_000_000) // 120s
+                    throw AppError.timeout
+                }
+
+                // Whichever finishes first wins; cancel the other
+                try await group.next()
+                group.cancelAll()
             }
-
-            guard let headscaleURL = URL(string: appState.settings.headscaleURL) else {
-                throw AppError.configurationMissing("Invalid Headscale URL")
-            }
-
-            appState.updateState(.startingInstance)
-            let instanceManager = InstanceManager(apiEndpoint: lambdaURL, apiKey: apiKey)
-            let instanceInfo = try await instanceManager.start(instanceType: appState.settings.instanceType)
-
-            guard let publicIP = instanceInfo.publicIp else {
-                throw AppError.instanceStartFailed("No public IP returned")
-            }
-
-            appState.updateState(.waitingForHeadscale)
-            let headscaleClient = HeadscaleClient(serverURL: headscaleURL, apiKey: headscaleApiKey)
-            try await waitForHeadscale(client: headscaleClient)
-
-            appState.updateState(.connectingTunnel)
-            let config = try await getWireGuardConfig(headscaleClient: headscaleClient, endpoint: publicIP)
-            try await tunnelManager.connect(config: config)
-
-            try await verifyConnection(expectedIP: publicIP)
-
-            connectionStartTime = Date()
-            reconnectAttempts = 0
-            appState.updateState(.connected)
-            startMonitoring()
-
-            Log.connection.info("Connection flow completed successfully")
-
         } catch let error as AppError {
             Log.connection.error("Connection failed: \(error.localizedDescription)")
             await rollback()
             appState.updateState(.error(error))
+        } catch is CancellationError {
+            Log.connection.info("Connection cancelled")
         } catch {
             Log.connection.error("Connection failed with unexpected error: \(error.localizedDescription)")
             await rollback()
             appState.updateState(.error(.unknownError(error.localizedDescription)))
         }
+    }
+
+    private func performConnect() async throws {
+        let apiKey = try appState.settings.getLambdaApiKey()
+        let headscaleApiKey = try appState.settings.getHeadscaleApiKey()
+
+        guard let lambdaURL = URL(string: appState.settings.lambdaApiEndpoint) else {
+            throw AppError.configurationMissing("Invalid Lambda API endpoint")
+        }
+
+        guard let headscaleURL = URL(string: appState.settings.headscaleURL) else {
+            throw AppError.configurationMissing("Invalid Headscale URL")
+        }
+
+        await appState.updateState(.startingInstance)
+        let instanceManager = InstanceManager(apiEndpoint: lambdaURL, apiKey: apiKey)
+        let instanceInfo = try await instanceManager.start(instanceType: appState.settings.instanceType)
+
+        guard let publicIP = instanceInfo.publicIp else {
+            throw AppError.instanceStartFailed("No public IP returned")
+        }
+
+        await appState.updateState(.waitingForHeadscale)
+        let headscaleClient = HeadscaleClient(serverURL: headscaleURL, apiKey: headscaleApiKey)
+        try await waitForHeadscale(client: headscaleClient)
+
+        // Ensure this machine is registered with Headscale
+        try await ensureRegistered(headscaleClient: headscaleClient)
+
+        await appState.updateState(.connectingTunnel)
+        let config = try await getWireGuardConfig(headscaleClient: headscaleClient, endpoint: publicIP)
+        try await tunnelManager.connect(config: config, killSwitch: appState.settings.killSwitchEnabled)
+
+        try await verifyConnection(expectedIP: publicIP)
+
+        await MainActor.run {
+            connectionStartTime = Date()
+            reconnectAttempts = 0
+            appState.updateState(.connected)
+            startMonitoring()
+        }
+
+        Log.connection.info("Connection flow completed successfully")
     }
 
     func disconnect() async {
@@ -211,6 +259,36 @@ class ConnectionService: ObservableObject {
         return nodeKey
     }
 
+    private func ensureRegistered(headscaleClient: HeadscaleClient) async throws {
+        let machines = try await headscaleClient.listMachines()
+        let privateKey = try getOrCreateWireGuardKey()
+        let publicKey = try derivePublicKey(from: privateKey)
+
+        // Check if this machine is already registered
+        if machines.contains(where: { $0.nodeKey == publicKey }) {
+            Log.connection.info("Machine already registered with Headscale")
+            return
+        }
+
+        Log.connection.info("Machine not registered, creating pre-auth key...")
+        let namespace = appState.settings.headscaleNamespace
+        let preAuthKey = try await headscaleClient.createPreAuthKey(user: namespace, reusable: false)
+
+        // Store the pre-auth key — the tunnel extension uses it during WireGuard handshake
+        // Delete any old pre-auth key first to avoid accumulation
+        try? KeychainService.shared.delete(key: Constants.Keychain.headscalePreAuthKeyAccount)
+        try KeychainService.shared.save(key: Constants.Keychain.headscalePreAuthKeyAccount, value: preAuthKey.key)
+        Log.connection.info("Machine registered with Headscale, pre-auth key stored")
+    }
+
+    private func derivePublicKey(from base64PrivateKey: String) throws -> String {
+        guard let keyData = Data(base64Encoded: base64PrivateKey) else {
+            throw AppError.tunnelFailed("Invalid base64 private key")
+        }
+        let privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: keyData)
+        return privateKey.publicKey.rawRepresentation.base64EncodedString()
+    }
+
     private func getOrCreateWireGuardKey() throws -> String {
         if let existingKey = try KeychainService.shared.load(key: Constants.Keychain.wireguardPrivateKeyAccount) {
             return existingKey
@@ -276,11 +354,33 @@ class ConnectionService: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(Constants.Polling.connectionMonitorInterval * 1_000_000_000))
             }
         }
+
+        startAutoDisconnectTimer()
+    }
+
+    private func startAutoDisconnectTimer() {
+        autoDisconnectTask?.cancel()
+        autoDisconnectTask = nil
+
+        let timeout = appState.settings.autoDisconnectTimeout
+        guard timeout > 0 else { return }
+
+        let timeoutSeconds = timeout * 60  // Setting is in minutes
+        Log.connection.info("Auto-disconnect timer started: \(Int(timeout)) minutes")
+
+        autoDisconnectTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+            guard !Task.isCancelled && appState.connectionState.isConnected else { return }
+            Log.connection.info("Auto-disconnect timeout reached, disconnecting...")
+            await disconnect()
+        }
     }
 
     private func stopMonitoring() {
         monitoringTask?.cancel()
         monitoringTask = nil
+        autoDisconnectTask?.cancel()
+        autoDisconnectTask = nil
     }
 
     private func updateConnectionStatus() async {

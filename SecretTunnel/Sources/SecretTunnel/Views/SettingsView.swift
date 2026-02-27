@@ -413,25 +413,61 @@ struct SettingsView: View {
     private var generalTab: some View {
         @Bindable var bindableSettings = appState.settings
 
-        return VStack(alignment: .leading, spacing: 16) {
-            Text("General Settings")
-                .font(.headline)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("General Settings")
+                    .font(.headline)
 
-            Toggle("Launch at Login", isOn: $bindableSettings.launchAtLogin)
+                Toggle("Launch at Login", isOn: $bindableSettings.launchAtLogin)
 
-            Spacer()
+                Divider()
 
-            HStack {
-                Spacer()
-                Button("Save") {
-                    saveSettings()
+                Text("Security")
+                    .font(.headline)
+
+                Toggle("Kill Switch", isOn: $bindableSettings.killSwitchEnabled)
+                Text("Block all internet traffic if the VPN tunnel drops. Prevents IP leaks.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
+                Divider()
+
+                Text("Auto-Connect")
+                    .font(.headline)
+
+                Toggle("Auto-connect on untrusted WiFi", isOn: $bindableSettings.autoConnectUntrustedWiFi)
+                Text("Automatically start VPN when joining a WiFi network not in your trusted list.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
+                if appState.settings.autoConnectUntrustedWiFi {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Trusted WiFi Networks")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("Home WiFi, Office WiFi", text: $bindableSettings.trustedWiFiNetworks)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Comma-separated SSIDs. VPN won't auto-connect on these networks.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
 
-                Button("Close") {
-                    closeWindow()
+                Spacer()
+
+                HStack {
+                    Spacer()
+                    Button("Save") {
+                        saveSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Close") {
+                        closeWindow()
+                    }
                 }
             }
+            .padding()
         }
     }
 

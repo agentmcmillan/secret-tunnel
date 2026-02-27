@@ -69,3 +69,17 @@ targets:
     dependencies:
       - package: WireGuardKit
       - sdk: NetworkExtension.framework
+
+  SecretTunnelTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/SecretTunnelTests
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.secrettunnel.vpn.tests
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: 7552UR9ZVD
+      GENERATE_INFOPLIST_FILE: true
+    dependencies:
+      - target: SecretTunnel

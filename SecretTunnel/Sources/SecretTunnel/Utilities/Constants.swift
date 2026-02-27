@@ -32,6 +32,7 @@ enum Constants {
         static let lambdaApiKeyAccount = "lambdaApiKey"
         static let headscaleApiKeyAccount = "headscaleApiKey"
         static let wireguardPrivateKeyAccount = "wireguardPrivateKey"
+        static let headscalePreAuthKeyAccount = "headscalePreAuthKey"
     }
 
     enum WireGuard {

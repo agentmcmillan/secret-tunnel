@@ -91,7 +91,7 @@ class HeadscaleClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = Constants.Timeouts.apiRequest
 
-        let response: MachinesResponse = try await performRequest(request)
+        let response: MachinesResponse = try await performRequestWithRetry(request)
         Log.api.info("Found \(response.machines.count) machines")
         return response.machines
     }
@@ -105,7 +105,7 @@ class HeadscaleClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = Constants.Timeouts.apiRequest
 
-        let response: RoutesResponse = try await performRequest(request)
+        let response: RoutesResponse = try await performRequestWithRetry(request)
         Log.api.info("Found \(response.routes.count) routes")
         return response.routes
     }
@@ -137,9 +137,29 @@ class HeadscaleClient {
 
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let response: PreAuthKeyResponse = try await performRequest(request)
+        let response: PreAuthKeyResponse = try await performRequestWithRetry(request)
         Log.api.info("Created pre-auth key: \(response.preAuthKey.id)")
         return response.preAuthKey
+    }
+
+    private func performRequestWithRetry<T: Decodable>(_ request: URLRequest) async throws -> T {
+        var lastError: Error?
+
+        for attempt in 1...Constants.Retry.maxAttempts {
+            do {
+                return try await performRequest(request)
+            } catch {
+                lastError = error
+                Log.api.warning("Headscale request failed (attempt \(attempt)/\(Constants.Retry.maxAttempts)): \(error.localizedDescription)")
+
+                if attempt < Constants.Retry.maxAttempts {
+                    let delay = Constants.Retry.initialDelay * pow(Constants.Retry.backoffMultiplier, Double(attempt - 1))
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+        }
+
+        throw lastError ?? HeadscaleError.timeout
     }
 
     private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {

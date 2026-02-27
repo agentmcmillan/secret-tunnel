@@ -65,27 +65,44 @@ struct MenuBarView: View {
     }
 
     private var actionButton: some View {
-        Button(action: {
-            Task {
-                if appState.connectionState.isConnected {
-                    await connectionService.disconnect()
-                } else if !appState.connectionState.isConnecting {
-                    await connectionService.connect()
+        VStack(spacing: 6) {
+            Button(action: {
+                Task {
+                    if appState.connectionState.isConnected {
+                        await connectionService.disconnect()
+                    } else if !appState.connectionState.isConnecting {
+                        await connectionService.connect()
+                    }
+                }
+            }) {
+                HStack {
+                    if appState.connectionState.isConnecting {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 16, height: 16)
+                    }
+                    Text(buttonTitle)
+                        .frame(maxWidth: .infinity)
                 }
             }
-        }) {
-            HStack {
-                if appState.connectionState.isConnecting {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .frame(width: 16, height: 16)
+            .buttonStyle(.borderedProminent)
+            .disabled(appState.connectionState.isConnecting || !appState.settings.isValid)
+
+            if case .error = appState.connectionState {
+                Button(action: {
+                    Task {
+                        await connectionService.connect()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Retry")
+                            .frame(maxWidth: .infinity)
+                    }
                 }
-                Text(buttonTitle)
-                    .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
             }
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(appState.connectionState.isConnecting || !appState.settings.isValid)
     }
 
     private var buttonTitle: String {
@@ -93,6 +110,8 @@ struct MenuBarView: View {
             return "Connecting..."
         } else if appState.connectionState.isConnected {
             return "Disconnect"
+        } else if case .error = appState.connectionState {
+            return "Connect"
         } else {
             return "Connect"
         }

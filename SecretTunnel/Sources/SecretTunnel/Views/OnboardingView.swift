@@ -9,6 +9,8 @@ struct OnboardingView: View {
     @State private var headscaleApiKey: String = ""
     @State private var showingError: Bool = false
     @State private var errorMessage: String = ""
+    @State private var testingConnection: Bool = false
+    @State private var testPassed: Bool = false
 
     let onComplete: () -> Void
 
@@ -172,18 +174,81 @@ struct OnboardingView: View {
 
     private var completionStep: some View {
         VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.green)
+            if testPassed {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.green)
 
-            Text("Setup Complete!")
-                .font(.title2)
+                Text("Setup Complete!")
+                    .font(.title2)
 
-            Text("You're all set to connect to your VPN. Click 'Get Started' to begin.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                Text("Your connection was verified. Click 'Get Started' to begin.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+            } else {
+                Image(systemName: "network.badge.shield.half.filled")
+                    .font(.system(size: 80))
+                    .foregroundColor(.accentColor)
+
+                Text("Verify Connection")
+                    .font(.title2)
+
+                Text("Test your configuration before getting started.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+
+                Button(action: {
+                    Task { await testOnboardingConnection() }
+                }) {
+                    HStack {
+                        if testingConnection {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .frame(width: 16, height: 16)
+                        }
+                        Text(testingConnection ? "Testing..." : "Test Connection")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(testingConnection)
+
+                Text("You can also skip this and test later from Settings.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
+    }
+
+    private func testOnboardingConnection() async {
+        testingConnection = true
+        defer { testingConnection = false }
+
+        do {
+            guard let lambdaURL = URL(string: lambdaApiEndpoint) else {
+                throw AppError.configurationMissing("Invalid Lambda API endpoint")
+            }
+
+            let instanceManager = InstanceManager(apiEndpoint: lambdaURL, apiKey: lambdaApiKey)
+            _ = try await instanceManager.getStatus()
+
+            guard let headscaleURL = URL(string: headscaleURL) else {
+                throw AppError.configurationMissing("Invalid Headscale URL")
+            }
+
+            let headscaleClient = HeadscaleClient(serverURL: headscaleURL, apiKey: headscaleApiKey)
+            let healthy = try await headscaleClient.checkHealth()
+
+            if healthy {
+                testPassed = true
+            } else {
+                errorMessage = "Headscale health check failed. The EC2 instance may need to be started first."
+                showingError = true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
 
     private var quickSetupHint: some View {

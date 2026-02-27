@@ -48,8 +48,8 @@ class TunnelManager {
         }
     }
 
-    func connect(config: WireGuardConfig) async throws {
-        Log.tunnel.info("Connecting NetworkExtension tunnel...")
+    func connect(config: WireGuardConfig, killSwitch: Bool = false) async throws {
+        Log.tunnel.info("Connecting NetworkExtension tunnel (killSwitch: \(killSwitch))...")
 
         if manager == nil {
             try await loadOrCreateManager()
@@ -62,6 +62,14 @@ class TunnelManager {
         let protocolConfiguration = manager.protocolConfiguration as? NETunnelProviderProtocol ?? NETunnelProviderProtocol()
         protocolConfiguration.providerBundleIdentifier = Constants.tunnelBundleIdentifier
         protocolConfiguration.serverAddress = config.serverEndpoint
+
+        // Kill switch: block all non-VPN traffic when tunnel is active
+        if killSwitch {
+            protocolConfiguration.includeAllNetworks = true
+            protocolConfiguration.excludeLocalNetworks = true
+        } else {
+            protocolConfiguration.includeAllNetworks = false
+        }
 
         let wgQuickConfig = config.toWgQuickConfig()
         protocolConfiguration.providerConfiguration = ["wgQuickConfig": wgQuickConfig as NSString]

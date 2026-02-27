@@ -1,136 +1,106 @@
-# ZeroTeir - VPN On Demand
+# Secret Tunnel - VPN On Demand
 
-VPN-on-demand system combining macOS menu bar UI, AWS cloud infrastructure, and ZeroTier-based connectivity for firewall bypass.
+VPN-on-demand system: macOS menu bar app + AWS EC2 + Headscale/WireGuard.
 
 ## Project Vision
 
-**What**: On-demand VPN service that spins up when needed, tears down when idle
-**Why**: Cost-effective, firewall-resistant VPN access with native macOS UX
-**How**: Menu bar app + AWS EC2 + ZeroTier networking
-
-### Components
-1. **macOS Menu Bar App** - Native UI for VPN control
-2. **AWS Instance Management** - Dynamic EC2 lifecycle (cost optimization)
-3. **ZeroTier VPN** - Peer-to-peer networking with firewall bypass
-4. **Orchestration** - Connects the pieces seamlessly
-
-## Quick Start
-
-*Project is in initialization phase. Commands will be added as development progresses.*
-
-## Development
-
-### Environment
-- Platform: macOS (primary target)
-- Cloud: AWS (EC2 for VPN servers)
-- VPN: ZeroTier (network layer)
-- AI: Claude Code (with extended permissions)
-
-### Permissions
-Claude Code is configured with:
-- Web fetch: ZeroTier documentation
-- SSH access: Local network infrastructure
-- Web search: Research and troubleshooting
-
-### Security Notes
-- Credentials must never be committed (see `.gitignore`)
-- AWS credentials via environment or AWS CLI config
-- ZeroTier API tokens via keychain
-- **TODO**: Migrate SSH password from settings.local.json to keychain
+**What**: On-demand VPN that spins up when needed, tears down when idle
+**Why**: Cost-effective, firewall-resistant VPN with native macOS UX
+**How**: Menu bar app → Lambda starts EC2 → Headscale coordinates → WireGuard tunnel
 
 ## Architecture
 
-*To be defined as implementation progresses*
+### Components
+1. **macOS Menu Bar App** (`SecretTunnel/`) - SwiftUI + NetworkExtension (NEPacketTunnelProvider)
+2. **AWS Infrastructure** (`terraform/`) - EC2 + Lambda + API Gateway + CloudWatch
+3. **VPN Layer** - Headscale control plane + WireGuard data plane
+4. **Split Tunnel** - Home LAN (192.168.0.0/20) via NAS, internet via AWS
 
-### Planned Tech Stack
-TBD - Options under consideration:
-- **macOS App**: Swift/SwiftUI or Objective-C
-- **Backend**: Go, Rust, or Node.js for orchestration
-- **AWS SDK**: Language-specific AWS SDK
-- **ZeroTier**: API integration via HTTP
+### Tech Stack
+- **Client**: Swift/SwiftUI, XcodeGen, WireGuardKit
+- **Infrastructure**: Terraform, AWS (EC2, Lambda, API Gateway, CloudWatch)
+- **VPN**: Headscale (self-hosted Tailscale) + WireGuard
+- **Build**: XcodeGen (project.yml) → Xcode project, `make build` / `make dmg`
 
-## Alpha-Wave Index
-> Last indexed: 2026-02-21T21:23:00Z
-> Files: 3
+## Quick Start
 
-@alpha-wave/INDEX.md
-@alpha-wave/TOPICS.md
+### Build the app
+```bash
+cd SecretTunnel
+make build      # Build the app
+make dmg        # Package as DMG
+```
 
-Quick summaries available in `alpha-wave/summaries/`
+### Deploy infrastructure
+```bash
+./setup.sh      # Interactive setup (creates terraform.tfvars, deploys)
+# OR manually:
+cd terraform && terraform init && terraform apply
+```
 
-## Brain-Wave Memory System
+### Configure the app
+1. Open Secret Tunnel from menu bar
+2. Enter settings from `terraform output`:
+   - API Endpoint
+   - API Key (`terraform output -raw api_key`)
+   - Headscale URL
 
-This project uses the three-agent Brain-Wave memory system:
+## Project Structure
 
-### For Development (You)
-- **New session**: Check `@alpha-wave/INDEX.md` for file overview
-- **Working on feature**: Check `@alpha-wave/TOPICS.md` for related files
-- **Deep dive**: Read file summaries in `alpha-wave/summaries/`
+```
+zeroteir/
+├── SecretTunnel/              # macOS app
+│   ├── Sources/SecretTunnel/  # App source code
+│   │   ├── App/               # App entry point, delegate
+│   │   ├── Views/             # SwiftUI views (MenuBar, Settings, Onboarding)
+│   │   ├── Services/          # Business logic (Tunnel, Instance, Headscale)
+│   │   ├── Models/            # Data models
+│   │   └── Utilities/         # Constants, Logger
+│   ├── SecretTunnelExtension/ # NetworkExtension (PacketTunnelProvider)
+│   ├── Shared/                # IPC types shared between app and extension
+│   ├── Resources/             # Entitlements, Info.plist, Assets
+│   ├── LocalPackages/         # Vendored WireGuardKit
+│   ├── Scripts/               # build-dmg.sh, setup-wireguardkit.sh
+│   ├── project.yml            # XcodeGen config
+│   ├── Makefile               # Build commands
+│   └── Package.swift          # SPM package definition
+├── terraform/                 # AWS infrastructure
+│   ├── main.tf                # EC2, networking, security groups
+│   ├── lambda.tf              # Lambda functions, API Gateway
+│   ├── cloudwatch.tf          # Monitoring, alarms
+│   ├── iam.tf                 # IAM roles, policies
+│   ├── variables.tf           # Input variables
+│   ├── outputs.tf             # Output values
+│   └── files/                 # Cloud-init, Lambda code
+├── releases/                  # Packaged DMG builds
+├── setup.sh                   # One-command infrastructure deploy
+└── CLAUDE.md                  # This file
+```
 
-### For Maintenance (Agents)
-- **Alpha-Wave**: `use alpha-wave agent` to refresh file index
-- **Beta-Wave**: `use beta-wave agent` to create deep maps (run after Alpha-Wave)
-- **REM**: `use rem agent` to sync and track changes
+## Build Details
 
-### Context Restoration
-Full documentation: `.claude/rules/alpha-wave-context.md` (auto-loaded)
+- **Team ID**: 7552UR9ZVD
+- **Bundle IDs**: `com.secrettunnel.vpn` (app), `com.secrettunnel.vpn.tunnel` (extension)
+- **App Group**: `group.com.secrettunnel.vpn`
+- **Signing**: Automatic, requires `-allowProvisioningUpdates DEVELOPMENT_TEAM=7552UR9ZVD`
+- **WireGuardKit**: Vendored at `LocalPackages/wireguard-apple/`
+- **libwg-go.a**: Pre-built for arm64 in `Sources/WireGuardKitGo/`
+- **XcodeGen SPM bug**: Makefile auto-patches missing `package` back-reference
+
+## AWS Infrastructure
+
+- **Profile**: `zeroteir` (IAM user: zeroteir-terraform)
+- **Region**: us-east-1
+- **SSM paths**: `/secrettunnel/*`
+- **CloudWatch namespace**: `SecretTunnel`
+
+## Security Notes
+- Credentials must never be committed (see `.gitignore`)
+- AWS credentials via environment or AWS CLI config
+- API keys stored in macOS Keychain
+- Headscale API key auto-generated by cloud-init → SSM Parameter Store
 
 ## Repository
 
 - Remote: Private Gitea instance (192.168.1.83:3000)
 - Branch: main
-- Status: Initialization complete, awaiting first code
-
-## Integration Points
-
-### ZeroTier
-- Docs: https://docs.zerotier.com
-- Purpose: VPN network creation and management
-- Access: API via HTTP
-
-### AWS
-- Service: EC2 for VPN server instances
-- Purpose: On-demand compute for VPN endpoints
-- Regions: TBD (likely multi-region for redundancy)
-
-### Local Network
-- Router: 192.168.1.1 (SSH access configured)
-- Purpose: Network monitoring and configuration
-
-## Next Steps
-
-1. **Architecture Decision**
-   - Choose implementation language(s)
-   - Define component boundaries
-   - Design API contracts
-
-2. **Project Structure**
-   - Create source directories
-   - Add dependency management
-   - Setup build system
-
-3. **Menu Bar App Skeleton**
-   - Basic macOS app template
-   - Menu bar integration
-   - Preference storage
-
-4. **AWS Integration**
-   - EC2 instance templates
-   - Lifecycle management logic
-   - Cost tracking
-
-5. **ZeroTier Integration**
-   - API client implementation
-   - Network creation/deletion
-   - Member authorization
-
-## Notes
-
-- Currently just configuration files
-- No dependencies defined yet
-- Architecture decisions pending
-- Ready for rapid prototyping
-
----
-*Initialized: 2026-02-21*
-*Status: Pre-development*
