@@ -15,6 +15,33 @@ class ConnectionService: ObservableObject {
         self.appState = appState
         self.tunnelManager = TunnelManager()
         self.networkMonitor = NetworkMonitor()
+
+        networkMonitor.onNetworkChanged = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handleNetworkRecovery()
+            }
+        }
+    }
+
+    private func handleNetworkRecovery() async {
+        guard appState.connectionState.isConnected else { return }
+        Log.connection.info("Network changed while connected, checking tunnel health...")
+
+        do {
+            let stats = try await tunnelManager.getStats()
+            if let lastHandshake = stats.lastHandshake,
+               Date().timeIntervalSince(lastHandshake) > Constants.Polling.handshakeStaleThreshold {
+                Log.connection.info("Tunnel stale after network change, reconnecting...")
+                await disconnect()
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                await connect()
+            } else {
+                Log.connection.info("Tunnel still healthy after network change")
+            }
+        } catch {
+            Log.connection.warning("Failed to check tunnel after network change: \(error.localizedDescription)")
+        }
     }
 
     func connect() async {
@@ -123,6 +150,9 @@ class ConnectionService: ObservableObject {
 
         let s = appState.settings
 
+        // Fetch the server's public key from Headscale
+        let serverPublicKey = try await fetchServerPublicKey(headscaleClient: headscaleClient)
+
         // AWS peer - routes all internet traffic
         var awsAllowedIPs = s.wireGuardAllowedIPs
         if s.homeLANEnabled && !s.homeNASPublicKey.isEmpty {
@@ -132,7 +162,7 @@ class ConnectionService: ObservableObject {
 
         var peers = [
             WireGuardPeer(
-                publicKey: "SERVER_PUBLIC_KEY_PLACEHOLDER",
+                publicKey: serverPublicKey,
                 endpoint: "\(endpoint):\(s.wireGuardPort)",
                 allowedIPs: awsAllowedIPs,
                 persistentKeepalive: s.wireGuardPersistentKeepalive
@@ -162,6 +192,23 @@ class ConnectionService: ObservableObject {
         )
 
         return config
+    }
+
+    private func fetchServerPublicKey(headscaleClient: HeadscaleClient) async throws -> String {
+        Log.connection.info("Fetching server public key from Headscale...")
+        let machines = try await headscaleClient.listMachines()
+
+        // Find the AWS exit node — it's typically the first machine or the one with a public IP
+        guard let server = machines.first else {
+            throw AppError.headscaleTimeout
+        }
+
+        guard let nodeKey = server.nodeKey, !nodeKey.isEmpty else {
+            throw AppError.tunnelFailed("Server node has no public key")
+        }
+
+        Log.connection.info("Got server public key from node: \(server.name)")
+        return nodeKey
     }
 
     private func getOrCreateWireGuardKey() throws -> String {

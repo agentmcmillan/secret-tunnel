@@ -123,6 +123,13 @@ resource "aws_iam_role_policy" "idle_monitor_lambda" {
             "cloudwatch:namespace" = var.project_name
           }
         }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/secrettunnel/headscale-api-key"
       }
     ]
   })

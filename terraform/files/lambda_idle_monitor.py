@@ -21,12 +21,36 @@ logger.setLevel(logging.INFO)
 # Initialize AWS clients
 ec2 = boto3.client('ec2')
 cloudwatch = boto3.client('cloudwatch')
+ssm = boto3.client('ssm')
 
 # Get configuration from environment
 INSTANCE_ID = os.environ['INSTANCE_ID']
 HEADSCALE_URL = os.environ['HEADSCALE_URL']
 IDLE_TIMEOUT_MINUTES = int(os.environ.get('IDLE_TIMEOUT_MINUTES', '60'))
 CLOUDWATCH_NAMESPACE = os.environ.get('CLOUDWATCH_NAMESPACE', 'SecretTunnel')
+HEADSCALE_API_KEY_SSM = os.environ.get('HEADSCALE_API_KEY_SSM', '/secrettunnel/headscale-api-key')
+
+# Cache the API key for the Lambda execution lifetime
+_headscale_api_key_cache = None
+
+
+def get_headscale_api_key() -> Optional[str]:
+    """Retrieve Headscale API key from SSM Parameter Store (cached)."""
+    global _headscale_api_key_cache
+    if _headscale_api_key_cache is not None:
+        return _headscale_api_key_cache
+
+    try:
+        response = ssm.get_parameter(
+            Name=HEADSCALE_API_KEY_SSM,
+            WithDecryption=True
+        )
+        _headscale_api_key_cache = response['Parameter']['Value']
+        logger.info("Retrieved Headscale API key from SSM")
+        return _headscale_api_key_cache
+    except ClientError as e:
+        logger.warning(f"Failed to retrieve Headscale API key from SSM: {e}")
+        return None
 
 
 def get_instance_state() -> str:
@@ -87,24 +111,30 @@ def get_headscale_nodes() -> Optional[list]:
         List of nodes or None if query fails
     """
     try:
-        # Note: This is a simplified version. In production, you would:
-        # 1. Use Headscale API key authentication
-        # 2. Query the /api/v1/node endpoint
-        # 3. Parse the response for active connections
-        #
-        # For now, we'll use a health check as a proxy for activity
+        api_key = get_headscale_api_key()
+        if not api_key:
+            logger.warning("No Headscale API key available, cannot query nodes")
+            return None
 
         nodes_url = urljoin(HEADSCALE_URL, '/api/v1/node')
         logger.info(f"Querying Headscale nodes at {nodes_url}")
 
-        # TODO: Implement proper API authentication
-        # This requires storing Headscale API key in AWS Secrets Manager
-        # and retrieving it here
+        req = request.Request(nodes_url, method='GET')
+        req.add_header('Authorization', f'Bearer {api_key}')
+        req.add_header('User-Agent', 'SecretTunnel-IdleMonitor/1.0')
 
-        # For MVP, we return None to disable detailed node checking
-        logger.warning("Headscale API integration not yet implemented")
+        with request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            nodes = data.get('nodes', data.get('machines', []))
+            logger.info(f"Retrieved {len(nodes)} nodes from Headscale")
+            return nodes
+
+    except error.HTTPError as e:
+        if e.code == 401 or e.code == 403:
+            logger.warning("Headscale API authentication failed, key may be expired")
+        else:
+            logger.error(f"Headscale API HTTP error {e.code}: {e}")
         return None
-
     except Exception as e:
         logger.error(f"Error querying Headscale nodes: {e}")
         return None

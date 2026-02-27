@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 
 @Observable
 class AppState {
@@ -35,7 +36,24 @@ class AppSettings {
     var lambdaApiEndpoint: String = ""
     var headscaleURL: String = ""
     var awsRegion: String = "us-east-1"
-    var launchAtLogin: Bool = false
+    var launchAtLogin: Bool {
+        get {
+            SMAppService.mainApp.status == .enabled
+        }
+        set {
+            do {
+                if newValue {
+                    try SMAppService.mainApp.register()
+                    Log.keychain.info("Launch at login enabled")
+                } else {
+                    try SMAppService.mainApp.unregister()
+                    Log.keychain.info("Launch at login disabled")
+                }
+            } catch {
+                Log.keychain.error("Failed to update launch at login: \(error.localizedDescription)")
+            }
+        }
+    }
     var autoDisconnectTimeout: TimeInterval = 0
 
     // WireGuard
