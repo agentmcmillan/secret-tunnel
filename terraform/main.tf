@@ -135,6 +135,7 @@ resource "aws_instance" "vpn" {
     headscale_url     = local.headscale_url
     elastic_ip        = aws_eip.vpn.public_ip
     aws_region        = var.aws_region
+    enable_stunnel    = var.enable_stunnel
   })
 
   # Instance starts in stopped state to save costs

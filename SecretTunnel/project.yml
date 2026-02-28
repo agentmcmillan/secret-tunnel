@@ -34,8 +34,15 @@ targets:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       INFOPLIST_KEY_LSUIElement: true
       ENABLE_HARDENED_RUNTIME: true
-      CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: 7552UR9ZVD
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_STYLE: Automatic
+          # When Developer ID cert is installed, change to:
+          # CODE_SIGN_STYLE: Manual
+          # CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
     dependencies:
       - target: SecretTunnelExtension
         embed: true
@@ -63,9 +70,18 @@ targets:
       MARKETING_VERSION: "1.0"
       CURRENT_PROJECT_VERSION: "1"
       ENABLE_HARDENED_RUNTIME: true
-      CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: 7552UR9ZVD
       LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
+        Release:
+          CODE_SIGN_STYLE: Automatic
+          # When Developer ID cert is installed, change to:
+          # CODE_SIGN_STYLE: Manual
+          # CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
+          LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
     dependencies:
       - package: WireGuardKit
       - sdk: NetworkExtension.framework

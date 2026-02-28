@@ -46,6 +46,11 @@ enum Constants {
         static let defaultDNS = "192.168.1.1"
     }
 
+    enum Stealth {
+        static let defaultPort: UInt16 = 443
+        static let localBridgePort: UInt16 = 51821
+    }
+
     enum UniFi {
         static let defaultListenPort = 51820
     }

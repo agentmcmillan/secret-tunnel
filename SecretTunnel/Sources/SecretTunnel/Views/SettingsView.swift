@@ -191,6 +191,27 @@ struct SettingsView: View {
 
                 Divider()
 
+                // VPN Exclusions Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("VPN Exclusions")
+                        .font(.headline)
+
+                    Text("Domains or IP/CIDR ranges to bypass the VPN. Traffic to these destinations will go direct, not through the tunnel.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    TextEditor(text: $bindableSettings.vpnExcludedRoutes)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(height: 100)
+                        .border(Color.secondary.opacity(0.3))
+
+                    Text("One per line. Examples:\n192.168.1.0/24\n10.0.0.0/8\nnetflix.com\n# Lines starting with # are ignored")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
                 // UniFi Travel Router Section
                 VStack(alignment: .leading, spacing: 12) {
                     Text("UniFi Travel Router")
@@ -292,12 +313,42 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
 
+                Divider()
+
+                // Stealth Mode
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Stealth Mode")
+                        .font(.headline)
+
+                    Text("Wraps WireGuard traffic in TLS on TCP 443 to bypass deep packet inspection. Requires stunnel on the server (enable_stunnel = true in Terraform).")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Toggle("Enable Stealth Mode", isOn: $bindableSettings.stealthModeEnabled)
+
+                    if appState.settings.stealthModeEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Stealth Port")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("443", value: $bindableSettings.stealthPort, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 120)
+                            Text("TCP port for TLS wrapper. Default: 443 (looks like HTTPS).")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
                 HStack {
                     Button("Reset to Defaults") {
                         appState.settings.wireGuardPort = Constants.WireGuard.port
                         appState.settings.wireGuardDNS = "1.1.1.1"
                         appState.settings.wireGuardPersistentKeepalive = Constants.WireGuard.persistentKeepalive
                         appState.settings.wireGuardAllowedIPs = "0.0.0.0/0"
+                        appState.settings.stealthModeEnabled = false
+                        appState.settings.stealthPort = Int(Constants.Stealth.defaultPort)
                     }
                     Spacer()
                     Button("Save") {
@@ -318,8 +369,56 @@ struct SettingsView: View {
                 Text("AWS & Instance Configuration")
                     .font(.headline)
 
+                // Region management
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Regions")
+                        .font(.headline)
+
+                    Text("Configure multiple regions. Each requires its own Terraform deployment. Select the active region for connections.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if !appState.settings.regions.isEmpty {
+                        Picker("Active Region", selection: $bindableSettings.selectedRegionId) {
+                            ForEach(appState.settings.regions) { region in
+                                Text(region.displayName).tag(region.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        ForEach(appState.settings.regions) { region in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(region.displayName)
+                                        .font(.caption)
+                                        .fontWeight(region.id == appState.settings.selectedRegionId ? .bold : .regular)
+                                    Text(region.apiEndpoint)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if region.id == appState.settings.selectedRegionId {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                }
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.05))
+                            .cornerRadius(6)
+                        }
+                    }
+
+                    Text("To add a region: deploy Terraform with a different aws_region, then update the API Endpoint and Headscale URL in the Connection tab.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("AWS Region")
+                    Text("AWS Region (current deployment)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Picker("AWS Region", selection: $bindableSettings.awsRegion) {

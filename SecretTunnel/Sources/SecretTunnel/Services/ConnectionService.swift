@@ -11,6 +11,7 @@ class ConnectionService: ObservableObject {
     private var autoDisconnectTask: Task<Void, Never>?
     private var connectionStartTime: Date?
     private var reconnectAttempts = 0
+    private var stealthBridge: StealthBridge?
 
     init(appState: AppState) {
         self.appState = appState
@@ -102,14 +103,19 @@ class ConnectionService: ObservableObject {
     }
 
     private func performConnect() async throws {
+        // Use selected region config if available, fall back to flat settings
+        let region = appState.settings.selectedRegion
+        let apiEndpoint = region?.apiEndpoint ?? appState.settings.lambdaApiEndpoint
+        let hsURL = region?.headscaleURL ?? appState.settings.headscaleURL
+
         let apiKey = try appState.settings.getLambdaApiKey()
         let headscaleApiKey = try appState.settings.getHeadscaleApiKey()
 
-        guard let lambdaURL = URL(string: appState.settings.lambdaApiEndpoint) else {
+        guard let lambdaURL = URL(string: apiEndpoint) else {
             throw AppError.configurationMissing("Invalid Lambda API endpoint")
         }
 
-        guard let headscaleURL = URL(string: appState.settings.headscaleURL) else {
+        guard let headscaleURL = URL(string: hsURL) else {
             throw AppError.configurationMissing("Invalid Headscale URL")
         }
 
@@ -129,7 +135,22 @@ class ConnectionService: ObservableObject {
         try await ensureRegistered(headscaleClient: headscaleClient)
 
         await appState.updateState(.connectingTunnel)
-        let config = try await getWireGuardConfig(headscaleClient: headscaleClient, endpoint: publicIP)
+
+        // Start stealth bridge if enabled (wraps WireGuard UDP in TLS TCP)
+        var effectiveEndpoint = publicIP
+        if appState.settings.stealthModeEnabled {
+            let bridge = StealthBridge(
+                localPort: Constants.Stealth.localBridgePort,
+                remoteHost: publicIP,
+                remotePort: UInt16(appState.settings.stealthPort)
+            )
+            try await bridge.start()
+            self.stealthBridge = bridge
+            effectiveEndpoint = "127.0.0.1"
+            Log.connection.info("Stealth mode active: WireGuard via TLS TCP \(publicIP):\(self.appState.settings.stealthPort)")
+        }
+
+        let config = try await getWireGuardConfig(headscaleClient: headscaleClient, endpoint: effectiveEndpoint)
         try await tunnelManager.connect(config: config, killSwitch: appState.settings.killSwitchEnabled)
 
         try await verifyConnection(expectedIP: publicIP)
@@ -149,6 +170,10 @@ class ConnectionService: ObservableObject {
         stopMonitoring()
 
         appState.updateState(.disconnecting)
+
+        // Stop stealth bridge if active
+        stealthBridge?.stop()
+        stealthBridge = nil
 
         do {
             try await tunnelManager.disconnect()
@@ -201,8 +226,20 @@ class ConnectionService: ObservableObject {
         // Fetch the server's public key from Headscale
         let serverPublicKey = try await fetchServerPublicKey(headscaleClient: headscaleClient)
 
+        // Determine the WireGuard port — in stealth mode, use the local bridge port
+        let wgPort = s.stealthModeEnabled ? Int(Constants.Stealth.localBridgePort) : s.wireGuardPort
+
         // AWS peer - routes all internet traffic
         var awsAllowedIPs = s.wireGuardAllowedIPs
+
+        // Apply VPN exclusions if configured
+        if !s.vpnExcludedRoutes.isEmpty {
+            let exclusions = parseExcludedRoutes(s.vpnExcludedRoutes)
+            if !exclusions.isEmpty {
+                awsAllowedIPs = RouteCalculator.allowedIPsExcluding(exclusions)
+            }
+        }
+
         if s.homeLANEnabled && !s.homeNASPublicKey.isEmpty {
             // When split tunnel is on, AWS gets everything except home subnet
             awsAllowedIPs = "0.0.0.0/1, 128.0.0.0/1"
@@ -211,7 +248,7 @@ class ConnectionService: ObservableObject {
         var peers = [
             WireGuardPeer(
                 publicKey: serverPublicKey,
-                endpoint: "\(endpoint):\(s.wireGuardPort)",
+                endpoint: "\(endpoint):\(wgPort)",
                 allowedIPs: awsAllowedIPs,
                 persistentKeepalive: s.wireGuardPersistentKeepalive
             )
@@ -326,6 +363,9 @@ class ConnectionService: ObservableObject {
     private func rollback() async {
         Log.connection.info("Rolling back connection attempt...")
 
+        stealthBridge?.stop()
+        stealthBridge = nil
+
         do {
             try await tunnelManager.disconnect()
         } catch {
@@ -418,6 +458,40 @@ class ConnectionService: ObservableObject {
         } catch {
             Log.connection.warning("Failed to update connection status: \(error.localizedDescription)")
         }
+    }
+
+    private func parseExcludedRoutes(_ routes: String) -> [String] {
+        return routes
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+            .compactMap { entry -> String? in
+                // If it looks like a CIDR or IP, return as-is
+                if entry.contains("/") || entry.contains(".") {
+                    return entry.contains("/") ? entry : "\(entry)/32"
+                }
+                // Domain name — resolve to IP at connect time
+                return resolveDomain(entry)
+            }
+    }
+
+    private func resolveDomain(_ domain: String) -> String? {
+        let host = CFHostCreateWithName(nil, domain as CFString).takeRetainedValue()
+        var resolved = DarwinBoolean(false)
+        CFHostStartInfoResolution(host, .addresses, nil)
+        guard let addresses = CFHostGetAddressing(host, &resolved)?.takeUnretainedValue() as NSArray?,
+              let firstAddr = addresses.firstObject as? Data else {
+            Log.connection.warning("Failed to resolve domain: \(domain)")
+            return nil
+        }
+        var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        firstAddr.withUnsafeBytes { ptr in
+            let sockaddr = ptr.baseAddress!.assumingMemoryBound(to: sockaddr.self)
+            getnameinfo(sockaddr, socklen_t(firstAddr.count), &hostname, socklen_t(hostname.count), nil, 0, NI_NUMERICHOST)
+        }
+        let ip = String(cString: hostname)
+        Log.connection.info("Resolved \(domain) → \(ip)")
+        return "\(ip)/32"
     }
 
     private func handleStaleConnection() async {

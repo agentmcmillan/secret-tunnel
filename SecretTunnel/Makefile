@@ -1,4 +1,4 @@
-.PHONY: build release dmg clean run help xcodegen check
+.PHONY: build release dmg notarize staple clean run help xcodegen check
 
 APP_NAME = SecretTunnel
 PROJECT_FILE = $(APP_NAME).xcodeproj
@@ -10,19 +10,26 @@ BUILD_DIR = build
 ARCHIVE_PATH = $(BUILD_DIR)/$(APP_NAME).xcarchive
 EXPORT_PATH = $(BUILD_DIR)/Export
 DMG_PATH = $(BUILD_DIR)/$(APP_NAME).dmg
+NOTARY_PROFILE = SecretTunnel
 
 help:
 	@echo "Secret Tunnel Build System (XcodeGen + NetworkExtension)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make xcodegen - Generate Xcode project from project.yml"
-	@echo "  make build    - Build Debug configuration"
-	@echo "  make release  - Build Release archive"
-	@echo "  make dmg      - Create distributable DMG"
-	@echo "  make run      - Build and run the app"
-	@echo "  make check    - Check dependency versions"
-	@echo "  make clean    - Clean build artifacts"
-	@echo "  make help     - Show this help message"
+	@echo "  make xcodegen   - Generate Xcode project from project.yml"
+	@echo "  make build      - Build Debug configuration"
+	@echo "  make release    - Build Release archive"
+	@echo "  make dmg        - Create distributable DMG"
+	@echo "  make notarize   - Submit DMG for Apple notarization"
+	@echo "  make staple     - Staple notarization ticket to DMG"
+	@echo "  make run        - Build and run the app"
+	@echo "  make check      - Check dependency versions"
+	@echo "  make clean      - Clean build artifacts"
+	@echo "  make help       - Show this help message"
+	@echo ""
+	@echo "First-time notarization setup:"
+	@echo "  xcrun notarytool store-credentials $(NOTARY_PROFILE) \\"
+	@echo "    --apple-id YOUR_APPLE_ID --team-id $(TEAM_ID)"
 
 xcodegen:
 	@echo "Generating Xcode project..."
@@ -68,6 +75,16 @@ dmg: release
 		-exportOptionsPlist ExportOptions.plist
 	./Scripts/build-dmg.sh "$(EXPORT_PATH)/$(APP_NAME).app" "$(DMG_PATH)"
 	@echo "DMG created at $(DMG_PATH)"
+
+notarize: dmg
+	@echo "Submitting DMG for notarization..."
+	./Scripts/notarize.sh "$(DMG_PATH)" "$(NOTARY_PROFILE)"
+
+staple:
+	@echo "Stapling notarization ticket..."
+	xcrun stapler staple "$(DMG_PATH)"
+	xcrun stapler validate "$(DMG_PATH)"
+	@echo "Stapling complete"
 
 run: build
 	@echo "Running $(APP_NAME)..."

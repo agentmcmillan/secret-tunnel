@@ -31,11 +31,24 @@ class AppState {
     }
 }
 
+struct RegionConfig: Codable, Identifiable, Equatable {
+    var id: String  // e.g. "us-east-1"
+    var displayName: String  // e.g. "US East (N. Virginia)"
+    var apiEndpoint: String
+    var headscaleURL: String
+    var apiKey: String = ""  // Stored separately in Keychain
+    var headscaleApiKey: String = ""  // Stored separately in Keychain
+}
+
 @Observable
 class AppSettings {
     var lambdaApiEndpoint: String = ""
     var headscaleURL: String = ""
     var awsRegion: String = "us-east-1"
+
+    // Multi-region
+    var regions: [RegionConfig] = []
+    var selectedRegionId: String = ""
     var launchAtLogin: Bool {
         get {
             SMAppService.mainApp.status == .enabled
@@ -80,9 +93,20 @@ class AppSettings {
     var autoConnectUntrustedWiFi: Bool = false
     var trustedWiFiNetworks: String = ""  // Comma-separated SSIDs
 
+    // Stealth mode
+    var stealthModeEnabled: Bool = false
+    var stealthPort: Int = Int(Constants.Stealth.defaultPort)
+
+    // VPN exclusions (domain/IP bypass)
+    var vpnExcludedRoutes: String = ""  // Newline-separated IPs/CIDRs/domains
+
     // UniFi travel router
     var unifiEnabled: Bool = false
     var unifiPeerPublicKey: String = ""
+
+    var selectedRegion: RegionConfig? {
+        regions.first(where: { $0.id == selectedRegionId })
+    }
 
     var isValid: Bool {
         !lambdaApiEndpoint.isEmpty && !headscaleURL.isEmpty
@@ -98,6 +122,15 @@ class AppSettings {
             }
             if let region = try KeychainService.shared.load(key: "awsRegion") {
                 awsRegion = region
+            }
+            // Multi-region
+            if let regionsJSON = try KeychainService.shared.load(key: "regions"),
+               let data = regionsJSON.data(using: .utf8),
+               let decoded = try? JSONDecoder().decode([RegionConfig].self, from: data) {
+                regions = decoded
+            }
+            if let selRegion = try KeychainService.shared.load(key: "selectedRegionId") {
+                selectedRegionId = selRegion
             }
             // WireGuard
             if let port = try KeychainService.shared.load(key: "wireGuardPort"), let p = Int(port) {
@@ -146,6 +179,17 @@ class AppSettings {
             if let tw = try KeychainService.shared.load(key: "trustedWiFiNetworks") {
                 trustedWiFiNetworks = tw
             }
+            // Stealth
+            if let stealth = try KeychainService.shared.load(key: "stealthModeEnabled") {
+                stealthModeEnabled = stealth == "true"
+            }
+            if let sp = try KeychainService.shared.load(key: "stealthPort"), let p = Int(sp) {
+                stealthPort = p
+            }
+            // VPN Exclusions
+            if let excluded = try KeychainService.shared.load(key: "vpnExcludedRoutes") {
+                vpnExcludedRoutes = excluded
+            }
             // UniFi
             if let unifiOn = try KeychainService.shared.load(key: "unifiEnabled") {
                 unifiEnabled = unifiOn == "true"
@@ -162,6 +206,12 @@ class AppSettings {
         try KeychainService.shared.save(key: "lambdaApiEndpoint", value: lambdaApiEndpoint)
         try KeychainService.shared.save(key: "headscaleURL", value: headscaleURL)
         try KeychainService.shared.save(key: "awsRegion", value: awsRegion)
+        // Multi-region
+        if let regionsData = try? JSONEncoder().encode(regions),
+           let regionsJSON = String(data: regionsData, encoding: .utf8) {
+            try KeychainService.shared.save(key: "regions", value: regionsJSON)
+        }
+        try KeychainService.shared.save(key: "selectedRegionId", value: selectedRegionId)
         try KeychainService.shared.save(key: "wireGuardPort", value: String(wireGuardPort))
         try KeychainService.shared.save(key: "wireGuardDNS", value: wireGuardDNS)
         try KeychainService.shared.save(key: "wireGuardPersistentKeepalive", value: String(wireGuardPersistentKeepalive))
@@ -176,6 +226,9 @@ class AppSettings {
         try KeychainService.shared.save(key: "killSwitchEnabled", value: killSwitchEnabled ? "true" : "false")
         try KeychainService.shared.save(key: "autoConnectUntrustedWiFi", value: autoConnectUntrustedWiFi ? "true" : "false")
         try KeychainService.shared.save(key: "trustedWiFiNetworks", value: trustedWiFiNetworks)
+        try KeychainService.shared.save(key: "stealthModeEnabled", value: stealthModeEnabled ? "true" : "false")
+        try KeychainService.shared.save(key: "stealthPort", value: String(stealthPort))
+        try KeychainService.shared.save(key: "vpnExcludedRoutes", value: vpnExcludedRoutes)
         try KeychainService.shared.save(key: "unifiEnabled", value: unifiEnabled ? "true" : "false")
         try KeychainService.shared.save(key: "unifiPeerPublicKey", value: unifiPeerPublicKey)
     }
@@ -192,6 +245,31 @@ class AppSettings {
             throw AppError.configurationMissing("Headscale API Key")
         }
         return key
+    }
+
+    /// Migrate from flat settings to multi-region on first load
+    func migrateToRegions() {
+        guard regions.isEmpty && !lambdaApiEndpoint.isEmpty else { return }
+
+        let displayNames: [String: String] = [
+            "us-east-1": "US East (N. Virginia)", "us-east-2": "US East (Ohio)",
+            "us-west-1": "US West (N. California)", "us-west-2": "US West (Oregon)",
+            "eu-west-1": "EU (Ireland)", "eu-west-2": "EU (London)",
+            "eu-central-1": "EU (Frankfurt)", "ap-northeast-1": "AP (Tokyo)",
+            "ap-northeast-2": "AP (Seoul)", "ap-southeast-1": "AP (Singapore)",
+            "ap-southeast-2": "AP (Sydney)", "ap-south-1": "AP (Mumbai)",
+            "sa-east-1": "SA (Sao Paulo)"
+        ]
+
+        let region = RegionConfig(
+            id: awsRegion,
+            displayName: displayNames[awsRegion] ?? awsRegion,
+            apiEndpoint: lambdaApiEndpoint,
+            headscaleURL: headscaleURL
+        )
+        regions = [region]
+        selectedRegionId = region.id
+        Log.keychain.info("Migrated flat settings to region: \(region.id)")
     }
 
     func saveLambdaApiKey(_ key: String) throws {

@@ -40,6 +40,12 @@ struct MenuBarView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
+                if let region = appState.settings.selectedRegion {
+                    Text(region.displayName)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
             Spacer()
         }

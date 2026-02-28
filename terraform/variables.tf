@@ -88,3 +88,10 @@ variable "api_throttle_burst_limit" {
   type        = number
   default     = 20
 }
+
+# Stealth Mode Configuration
+variable "enable_stunnel" {
+  description = "Enable stunnel TCP wrapper for WireGuard (stealth mode over TLS on TCP 443)"
+  type        = bool
+  default     = false
+}

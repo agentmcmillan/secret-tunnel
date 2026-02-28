@@ -19,6 +19,10 @@ packages:
   - awscli
   - certbot
   - python3-certbot-nginx
+%{ if enable_stunnel }
+  - stunnel4
+  - socat
+%{ endif }
 
 write_files:
   # Headscale systemd service
@@ -173,6 +177,54 @@ write_files:
           }
       }
 
+%{ if enable_stunnel }
+  # Stunnel configuration for stealth mode (WireGuard over TLS on TCP 443)
+  - path: /etc/stunnel/stunnel.conf
+    content: |
+      ; Stunnel config for Secret Tunnel stealth mode
+      ; Wraps WireGuard UDP in TLS on TCP 443
+      pid = /var/run/stunnel4/stunnel.pid
+      setuid = stunnel4
+      setgid = stunnel4
+
+      [wireguard-tls]
+      accept = 0.0.0.0:8443
+      exec = /usr/bin/socat
+      execArgs = socat - UDP4:127.0.0.1:51820
+      cert = /etc/stunnel/stunnel.pem
+
+  # Systemd service for stunnel
+  - path: /etc/systemd/system/stunnel-wg.service
+    content: |
+      [Unit]
+      Description=Stunnel WireGuard TLS Wrapper
+      After=network-online.target headscale.service
+      Wants=network-online.target
+
+      [Service]
+      Type=forking
+      ExecStartPre=/usr/bin/openssl req -new -x509 -days 3650 -nodes -out /etc/stunnel/stunnel.pem -keyout /etc/stunnel/stunnel.pem -subj "/CN=${elastic_ip}"
+      ExecStart=/usr/bin/stunnel /etc/stunnel/stunnel.conf
+      Restart=on-failure
+      RestartSec=5s
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # Nginx upstream for stunnel on port 443
+  - path: /etc/nginx/sites-available/stunnel-proxy
+    content: |
+      stream {
+          upstream stunnel_backend {
+              server 127.0.0.1:8443;
+          }
+          server {
+              listen 443;
+              proxy_pass stunnel_backend;
+          }
+      }
+%{ endif }
+
   # Unattended upgrades configuration
   - path: /etc/apt/apt.conf.d/50unattended-upgrades
     content: |
@@ -277,6 +329,20 @@ runcmd:
   - iptables -A FORWARD -i tailscale0 -j ACCEPT
   - iptables -A FORWARD -o tailscale0 -j ACCEPT
   - iptables-save > /etc/iptables.rules
+
+%{ if enable_stunnel }
+  # Configure stunnel for stealth mode
+  - mkdir -p /var/run/stunnel4
+  - chown stunnel4:stunnel4 /var/run/stunnel4
+  - systemctl daemon-reload
+  - systemctl enable stunnel-wg
+  - systemctl start stunnel-wg
+  # Install nginx stream module for TCP proxy on 443
+  - apt-get install -y libnginx-mod-stream || true
+  - cp /etc/nginx/sites-available/stunnel-proxy /etc/nginx/modules-enabled/stunnel-stream.conf
+  - systemctl reload nginx
+  - echo "Stunnel stealth mode enabled on TCP 443" >> /var/log/cloud-init-complete.log
+%{ endif }
 
   # Log completion
   - echo "Secret Tunnel VPN setup complete - $(date)" >> /var/log/cloud-init-complete.log
