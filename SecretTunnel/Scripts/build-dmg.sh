@@ -133,4 +133,8 @@ hdiutil detach "${MOUNT_POINT}" 2>/dev/null || {
 echo "Converting to final DMG..."
 hdiutil convert "${TEMP_DMG}" -format UDZO -o "${OUTPUT_DMG}"
 
+# Sign the DMG with Developer ID
+echo "Signing DMG..."
+codesign --force --sign "Developer ID Application: Conor McMillan (7552UR9ZVD)" "${OUTPUT_DMG}"
+
 echo "DMG created successfully: ${OUTPUT_DMG}"

@@ -39,10 +39,9 @@ targets:
         Debug:
           CODE_SIGN_STYLE: Automatic
         Release:
-          CODE_SIGN_STYLE: Automatic
-          # When Developer ID cert is installed, change to:
-          # CODE_SIGN_STYLE: Manual
-          # CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
+          ENABLE_HARDENED_RUNTIME: true
     dependencies:
       - target: SecretTunnelExtension
         embed: true
@@ -77,10 +76,9 @@ targets:
           CODE_SIGN_STYLE: Automatic
           LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
         Release:
-          CODE_SIGN_STYLE: Automatic
-          # When Developer ID cert is installed, change to:
-          # CODE_SIGN_STYLE: Manual
-          # CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application: Conor McMillan (7552UR9ZVD)"
+          ENABLE_HARDENED_RUNTIME: true
           LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalPackages/wireguard-apple/Sources/WireGuardKitGo"
     dependencies:
       - package: WireGuardKit

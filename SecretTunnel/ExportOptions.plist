@@ -3,11 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>mac-application</string>
+    <string>developer-id</string>
     <key>teamID</key>
     <string>7552UR9ZVD</string>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Developer ID Application</string>
     <key>stripSwiftSymbols</key>
     <true/>
     <key>uploadSymbols</key>
